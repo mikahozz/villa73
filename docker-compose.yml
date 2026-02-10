@@ -1,11 +1,9 @@
 services:
-  homeapp73:
+  villa73:
+    container_name: villa73
+    image: villa73
+    restart: unless-stopped
     build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: homeapp73
+      dockerfile: ./Dockerfile
     ports:
       - 3000:3000
-    restart: unless-stopped
-
-  
