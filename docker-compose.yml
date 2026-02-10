@@ -1,0 +1,11 @@
+services:
+  homeapp73:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: homeapp73
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+
+  
