@@ -8,8 +8,8 @@ services:
     ports:
       - 3000:3000
     networks:
-      - gohome_default
+      - homeapp73-docker_default
 
 networks:
-  gohome_default:
+  homeapp73-docker_default:
     external: true
