@@ -7,3 +7,9 @@ services:
       dockerfile: ./Dockerfile
     ports:
       - 3000:3000
+    networks:
+      - gohome_default
+
+networks:
+  gohome_default:
+    external: true
