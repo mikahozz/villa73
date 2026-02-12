@@ -9,7 +9,7 @@ const images = Object.values(
     eager: true,
     query: "?url",
     import: "default",
-  })
+  }),
 ) as string[];
 
 function useBg(intervalMs: number = 1 * 60 * 60 * 1000) {
@@ -22,7 +22,7 @@ function useBg(intervalMs: number = 1 * 60 * 60 * 1000) {
       "Bg: useEffect called. isDayTime:",
       isDayTime(new Date()),
       " intervalMs:",
-      intervalMs
+      intervalMs,
     );
     if (images.length === 0) return;
     const filteredImages = images
@@ -38,13 +38,13 @@ function useBg(intervalMs: number = 1 * 60 * 60 * 1000) {
       });
     console.log(
       "Bg: Filtered images:",
-      filteredImages.map((path) => path.split("/").at(-1))
+      filteredImages.map((path) => path.split("/").at(-1)),
     );
     const setBg = () => {
       indexRef.current = Math.floor(Math.random() * filteredImages.length);
       console.log(
         "Bg: Swapping background to:",
-        filteredImages[indexRef.current]
+        filteredImages[indexRef.current],
       );
       setBgPath(filteredImages[indexRef.current]);
     };

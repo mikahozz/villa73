@@ -1,13 +1,6 @@
 // React component test for ElectricityPrice: documents polling logic and accessibility data list.
-import {
-  describe,
-  test,
-  expect,
-  vi,
-  beforeEach,
-  afterEach,
-  Mock,
-} from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import { DateTime } from "luxon";
@@ -84,7 +77,7 @@ describe("ElectricityPrice component polling logic", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ElectricityPrice />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     // Initial render before 14:00: ensure day average present
@@ -96,11 +89,11 @@ describe("ElectricityPrice component polling logic", () => {
     expect(priceDefinitions.length).toBe(25);
     expect(priceTerms[priceTerms.length - 1].textContent).toBe("Day average");
     expect(priceDefinitions[priceDefinitions.length - 1].textContent).toBe(
-      "10"
+      "10",
     );
     expect(priceTerms[priceTerms.length - 2].textContent).toBe("0");
     expect(priceDefinitions[priceDefinitions.length - 2].textContent).toBe(
-      "23"
+      "23",
     );
 
     expect(screen.getByTestId("elPriceDayAverageValue").textContent).toBe("10");

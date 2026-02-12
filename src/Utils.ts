@@ -1,4 +1,7 @@
-import { Bookings, YearMonthWeekBookings } from "./components/CabinBookings";
+import type {
+  Bookings,
+  YearMonthWeekBookings,
+} from "./components/CabinBookings";
 
 /* For a given date, get the ISO week number
  *
@@ -26,7 +29,7 @@ function getYearWeekNumber(d: Date) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   // Calculate full weeks to nearest Thursday
   const weekNo = Math.ceil(
-    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
   );
   // Return array of year and week number
   return [d.getUTCFullYear(), weekNo];
