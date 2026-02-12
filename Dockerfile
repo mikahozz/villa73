@@ -2,12 +2,13 @@
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
-# RUN npm install -D @swc/cli @swc/core
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # Production stage
 FROM nginx:alpine AS production

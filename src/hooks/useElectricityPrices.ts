@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 import { z } from "zod";
-import { ElectricityPrice, ElectricityPriceSchema } from "../types/electricity";
+import { ElectricityPriceSchema } from "../types/electricity";
+import type { ElectricityPrice } from "../types/electricity";
 import { useState } from "react";
 
 const ELECTRICITY_PRICES_KEY = "electricityPrices";
@@ -26,7 +27,7 @@ const fetchElectricityPrices = async (): Promise<ElectricityPrice[]> => {
   console.log("fetching electricity prices from", start, "to", end);
   const timeZone = "Europe/Helsinki";
   const response = await fetch(
-    `/api/electricity/prices?start=${start}&end=${end}&timeFormat=${timeZone}`
+    `/api/electricity/prices?start=${start}&end=${end}&timeFormat=${timeZone}`,
   );
 
   const data = await response.json();
@@ -92,7 +93,7 @@ export const useElectricityPrices = (firstTimeToShow: DateTime) => {
         const sorted = [...data].sort(
           (a, b) =>
             DateTime.fromISO(a.DateTime).toMillis() -
-            DateTime.fromISO(b.DateTime).toMillis()
+            DateTime.fromISO(b.DateTime).toMillis(),
         );
 
         // Detect if we have any price whose CET date is tomorrow
@@ -103,7 +104,7 @@ export const useElectricityPrices = (firstTimeToShow: DateTime) => {
         const hasTomorrow = sorted.some((p) =>
           DateTime.fromISO(p.DateTime)
             .setZone(priceZone)
-            .hasSame(tomorrowLocal, "day")
+            .hasSame(tomorrowLocal, "day"),
         );
         setTomorrowsPricesFetched(hasTomorrow);
         return sorted;
@@ -124,7 +125,7 @@ export const useElectricityPrices = (firstTimeToShow: DateTime) => {
         "tomorrowsPricesFetched",
         tomorrowsPricesFetched,
         "shouldRefetch",
-        shouldRefetch
+        shouldRefetch,
       );
       if (shouldRefetch) {
         return PREFETCH_INTERVAL; // Refetch every 10 mins until tomorrow's prices are available

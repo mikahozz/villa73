@@ -1,11 +1,17 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import viteTsconfigPaths from "vite-tsconfig-paths";
+import react from "@vitejs/plugin-react";
 import { mockApiPlugin } from "./src/mockupMiddleware";
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), viteTsconfigPaths(), mockApiPlugin()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [["babel-plugin-react-compiler"]],
+      },
+    }),
+    mockApiPlugin(),
+  ],
   server: {
     port: 3000,
   },
