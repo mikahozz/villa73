@@ -1,13 +1,6 @@
 # Villa73 - Home Dashboard
 
-Being rebuilt - again
+Being rebuilt - again. Now as a monorepo including the Go backend
 
-# Prerequisites
-
-Required backed services to run in /api path (not part of this repo).
-
-# To get started with local dev
-
-Dev with mock data:
-
-- `npm run dev`
+- frontend/ Contains the React web solution
+- backend/ Contains the Go backend

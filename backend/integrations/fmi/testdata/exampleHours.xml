@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wfs:FeatureCollection
+  timeStamp="2022-10-02T07:54:45Z"
+  numberMatched="1"
+  numberReturned="1"
+  xmlns:wfs="http://www.opengis.net/wfs/2.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:om="http://www.opengis.net/om/2.0"
+  xmlns:ompr="http://inspire.ec.europa.eu/schemas/ompr/3.0"
+  xmlns:omso="http://inspire.ec.europa.eu/schemas/omso/3.0"
+  xmlns:gml="http://www.opengis.net/gml/3.2"
+  xmlns:gmd="http://www.isotc211.org/2005/gmd"
+  xmlns:gco="http://www.isotc211.org/2005/gco"
+  xmlns:swe="http://www.opengis.net/swe/2.0"
+  xmlns:gmlcov="http://www.opengis.net/gmlcov/1.0"
+  xmlns:sam="http://www.opengis.net/sampling/2.0"
+  xmlns:sams="http://www.opengis.net/samplingSpatial/2.0"
+  xmlns:target="http://xml.fmi.fi/namespace/om/atmosphericfeatures/1.1"
+  xsi:schemaLocation="http://www.opengis.net/wfs/2.0 http://schemas.opengis.net/wfs/2.0/wfs.xsd
+  http://www.opengis.net/gmlcov/1.0 http://schemas.opengis.net/gmlcov/1.0/gmlcovAll.xsd
+  http://www.opengis.net/sampling/2.0 http://schemas.opengis.net/sampling/2.0/samplingFeature.xsd
+  http://www.opengis.net/samplingSpatial/2.0 http://schemas.opengis.net/samplingSpatial/2.0/spatialSamplingFeature.xsd
+  http://www.opengis.net/swe/2.0 http://schemas.opengis.net/sweCommon/2.0/swe.xsd
+  http://inspire.ec.europa.eu/schemas/ompr/3.0 https://inspire.ec.europa.eu/schemas/ompr/3.0/Processes.xsd
+  http://inspire.ec.europa.eu/schemas/omso/3.0 https://inspire.ec.europa.eu/schemas/omso/3.0/SpecialisedObservations.xsd
+  http://xml.fmi.fi/namespace/om/atmosphericfeatures/1.1 https://xml.fmi.fi/schema/om/atmosphericfeatures/1.1/atmosphericfeatures.xsd">
+    <wfs:member>
+        <omso:GridSeriesObservation gml:id="WFS-gV_9koGfCxcIXa3rHC_0DX0v.VWJTowtoWbbpdOt.Lnl5dsPTTv3c3Trvlw9NGXk6daN_Xls8unW3rs6aeG_Tu6Y9_bLyw58sLSxZc.ndU07ctqb.FUhcM.DGx8udakWhTjunTRk1cM7LuyVNO3Lam_hVInDPgzteXz338slTo15fPffyyX9_bLy78tPTDi2ZYmZsw9MvPpEzNm_Hh2Za1M2m_GkruvTM4a23D4iaefTDux5aVq6EBpbcPiLw349HOcFUcxvbcvTLvoYeWHbl6ZeXOtapBv0KjGRfg1o9a1SDfoVGMi_Ng2K1qkG_QqMZF.bJnVrUpF.hUYyL8GtHrWr079CoxkX4NaPWtXp36FRjIvzYNitavTv0KjGRfmyZ1a1eJfoVGMi_BrR62KFKDfoVGMi_Bhw62KFKTfoVGMi_Ng2K1qEG_QqMZF.DWj1uV4NeDfoVGMi_SgzpbW26efPTuz1MvjpWNOwzm1u67Z.an0w9NO_dznCZnDZhx5edZ2vrt4ddmFrceuHZp6eZO7Nvia3Pph6ad.6p54Za3N_DLuyYemG_kw6dnluc.m_llyceuXl5v6cldoWbbpdOt.Lnl5dsPTTv3c3Trvlw9NGXk6daN_Xls8unW3rs6aeG_Tu6Y9_bLyw58rQ6aduWn0y8Jmh007ctrfuy1jVakMA">
+            <om:phenomenonTime>
+                <gml:TimePeriod gml:id="time1-1-1">
+                    <gml:beginPosition>2022-10-01T07:00:00Z</gml:beginPosition>
+                    <gml:endPosition>2022-10-02T07:00:00Z</gml:endPosition>
+                </gml:TimePeriod>
+            </om:phenomenonTime>
+            <om:resultTime>
+                <gml:TimeInstant gml:id="time2-1-1">
+                    <gml:timePosition>2022-10-02T07:00:00Z</gml:timePosition>
+                </gml:TimeInstant>
+            </om:resultTime>
+            <om:procedure xlink:href="http://xml.fmi.fi/inspire/process/opendata_daily"/>
+            <om:parameter>
+                <om:NamedValue>
+                    <om:name xlink:href="https://inspire.ec.europa.eu/codeList/ProcessParameterValue/value/groundObservation/observationIntent"/>
+                    <om:value>
+			atmosphere
+                    </om:value>
+                </om:NamedValue>
+            </om:parameter>
+            <om:observedProperty  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=TA_PT1H_AVG,TA_PT1H_MAX,TA_PT1H_MIN,RH_PT1H_AVG,WS_PT1H_AVG,WS_PT1H_MAX,WS_PT1H_MIN,WD_PT1H_AVG,PRA_PT1H_ACC,PRI_PT1H_MAX,PA_PT1H_AVG,WAWA_PT1H_RANK&amp;language=eng"/>
+            <om:featureOfInterest>
+                <sams:SF_SpatialSamplingFeature gml:id="sampling-feature-1-1-fmisid">
+                    <sam:sampledFeature>
+                        <target:LocationCollection gml:id="sampled-target-1-1">
+                            <target:member>
+                                <target:Location gml:id="obsloc-fmisid-101004-pos">
+                                    <gml:identifier codeSpace="http://xml.fmi.fi/namespace/stationcode/fmisid">101004</gml:identifier>
+                                    <gml:name codeSpace="http://xml.fmi.fi/namespace/locationcode/name">Helsinki Kumpula</gml:name>
+                                    <gml:name codeSpace="http://xml.fmi.fi/namespace/locationcode/geoid">-16000138</gml:name>
+                                    <gml:name codeSpace="http://xml.fmi.fi/namespace/locationcode/wmo">2998</gml:name>
+                                    <target:representativePoint xlink:href="#point-101004"/>
+                                    <target:region codeSpace="http://xml.fmi.fi/namespace/location/region">Helsinki</target:region>
+                                </target:Location>
+                            </target:member>
+                        </target:LocationCollection>
+                    </sam:sampledFeature>
+                    <sams:shape>
+                        <gml:MultiPoint gml:id="mp-1-1-fmisid">
+                            <gml:pointMember>
+                                <gml:Point gml:id="point-101004" srsName="http://www.opengis.net/def/crs/EPSG/0/4258" srsDimension="2">
+                                    <gml:name>Helsinki Kumpula</gml:name>
+                                    <gml:pos>60.20307 24.96131 </gml:pos>
+                                </gml:Point>
+                            </gml:pointMember>
+                        </gml:MultiPoint>
+                    </sams:shape>
+                </sams:SF_SpatialSamplingFeature>
+            </om:featureOfInterest>
+            <om:result>
+                <gmlcov:MultiPointCoverage gml:id="mpcv1-1-1">
+                    <gml:domainSet>
+                        <gmlcov:SimpleMultiPoint gml:id="mp1-1-1" srsName="http://xml.fmi.fi/gml/crs/compoundCRS.php?crs=4258&amp;time=unixtime" srsDimension="3">
+                            <gmlcov:positions>
+                60.20307 24.96131  1664607600
+                60.20307 24.96131  1664611200
+                60.20307 24.96131  1664614800
+                60.20307 24.96131  1664618400
+                60.20307 24.96131  1664622000
+                60.20307 24.96131  1664625600
+                60.20307 24.96131  1664629200
+                60.20307 24.96131  1664632800
+                60.20307 24.96131  1664636400
+                60.20307 24.96131  1664640000
+                60.20307 24.96131  1664643600
+                60.20307 24.96131  1664647200
+                60.20307 24.96131  1664650800
+                60.20307 24.96131  1664654400
+                60.20307 24.96131  1664658000
+                60.20307 24.96131  1664661600
+                60.20307 24.96131  1664665200
+                60.20307 24.96131  1664668800
+                60.20307 24.96131  1664672400
+                60.20307 24.96131  1664676000
+                60.20307 24.96131  1664679600
+                60.20307 24.96131  1664683200
+                60.20307 24.96131  1664686800
+                60.20307 24.96131  1664690400
+                60.20307 24.96131  1664694000
+                </gmlcov:positions>
+                        </gmlcov:SimpleMultiPoint>
+                    </gml:domainSet>
+                    <gml:rangeSet>
+                        <gml:DataBlock>
+                            <gml:rangeParameters/>
+                            <gml:doubleOrNilReasonTupleList>
+                10.7 10.8 10.3 82.0 4.6 5.8 3.4 211.0 0.0 0.0 1012.4 0.0 
+                11.1 11.4 10.8 81.0 5.2 6.1 3.9 208.0 0.0 0.0 1012.4 0.0 
+                11.5 11.8 11.2 80.0 5.2 6.4 3.7 199.0 0.0 0.0 1012.2 0.0 
+                12.2 13.0 11.8 74.0 5.2 6.0 4.1 189.0 0.0 0.0 1012.1 0.0 
+                13.0 13.6 12.6 71.0 4.8 5.3 4.2 185.0 0.0 0.0 1011.8 0.0 
+                13.0 13.6 12.7 71.0 4.5 5.6 2.9 180.0 0.0 0.0 1011.2 0.0 
+                12.9 13.3 12.7 70.0 4.5 5.1 4.0 177.0 0.0 0.0 1010.7 0.0 
+                12.9 13.1 12.5 70.0 4.3 5.0 3.7 176.0 0.0 0.0 1010.4 0.0 
+                12.2 12.4 11.9 75.0 3.3 4.1 2.4 161.0 0.0 0.0 1010.1 0.0 
+                11.6 11.9 11.3 81.0 2.5 3.1 2.2 143.0 0.0 0.0 1009.8 0.0 
+                11.2 11.5 11.1 84.0 2.5 3.2 2.2 149.0 0.0 0.0 1009.5 0.0 
+                11.2 11.6 10.9 78.0 3.5 4.3 3.0 184.0 0.0 0.0 1009.4 0.0 
+                11.1 11.3 10.9 79.0 3.3 3.9 2.9 194.0 0.0 0.0 1009.4 0.0 
+                10.6 11.2 10.2 80.0 2.9 4.2 2.3 193.0 0.0 0.0 1009.4 0.0 
+                10.7 11.0 10.0 85.0 3.0 3.6 2.3 175.0 0.0 0.0 1009.3 0.0 
+                10.6 10.9 10.1 86.0 3.4 4.1 2.4 178.0 0.0 0.0 1009.2 0.0 
+                10.1 10.3 10.0 87.0 2.6 3.3 2.0 186.0 0.0 0.0 1009.0 0.0 
+                10.2 10.4 10.0 89.0 2.8 3.2 2.3 153.0 0.0 0.0 1008.7 0.0 
+                10.4 10.5 10.2 90.0 3.2 3.7 2.5 163.0 0.0 0.0 1008.5 0.0 
+                10.1 10.3 9.9 91.0 2.3 3.2 1.7 144.0 0.0 0.0 1008.3 0.0 
+                9.7 9.9 9.6 93.0 2.2 2.6 1.8 134.0 0.0 0.0 1008.3 0.0 
+                9.8 9.9 9.6 92.0 2.3 2.5 1.9 124.0 0.0 0.0 1008.4 0.0 
+                9.4 9.6 9.3 94.0 2.8 3.0 2.5 126.0 0.0 0.0 1008.4 0.0 
+                9.9 10.7 9.3 91.0 3.3 3.5 2.7 150.0 0.0 0.0 1008.6 0.0 
+                10.9 11.2 10.7 83.0 3.5 4.1 2.7 152.0 0.0 0.0 1008.7 0.0 
+                </gml:doubleOrNilReasonTupleList>
+                        </gml:DataBlock>
+                    </gml:rangeSet>
+                    <gml:coverageFunction>
+                        <gml:CoverageMappingRule>
+                            <gml:ruleDefinition>Linear</gml:ruleDefinition>
+                        </gml:CoverageMappingRule>
+                    </gml:coverageFunction>
+                    <gmlcov:rangeType>
+                        <swe:DataRecord>
+                            <swe:field name="TA_PT1H_AVG"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=TA_PT1H_AVG&amp;language=eng"/>
+                            <swe:field name="TA_PT1H_MAX"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=TA_PT1H_MAX&amp;language=eng"/>
+                            <swe:field name="TA_PT1H_MIN"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=TA_PT1H_MIN&amp;language=eng"/>
+                            <swe:field name="RH_PT1H_AVG"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=RH_PT1H_AVG&amp;language=eng"/>
+                            <swe:field name="WS_PT1H_AVG"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=WS_PT1H_AVG&amp;language=eng"/>
+                            <swe:field name="WS_PT1H_MAX"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=WS_PT1H_MAX&amp;language=eng"/>
+                            <swe:field name="WS_PT1H_MIN"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=WS_PT1H_MIN&amp;language=eng"/>
+                            <swe:field name="WD_PT1H_AVG"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=WD_PT1H_AVG&amp;language=eng"/>
+                            <swe:field name="PRA_PT1H_ACC"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=PRA_PT1H_ACC&amp;language=eng"/>
+                            <swe:field name="PRI_PT1H_MAX"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=PRI_PT1H_MAX&amp;language=eng"/>
+                            <swe:field name="PA_PT1H_AVG"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=PA_PT1H_AVG&amp;language=eng"/>
+                            <swe:field name="WAWA_PT1H_RANK"  xlink:href="http://opendata.fmi.fi/meta?observableProperty=observation&amp;param=WAWA_PT1H_RANK&amp;language=eng"/>
+                        </swe:DataRecord>
+                    </gmlcov:rangeType>
+                </gmlcov:MultiPointCoverage>
+            </om:result>
+        </omso:GridSeriesObservation>
+    </wfs:member>
+</wfs:FeatureCollection>

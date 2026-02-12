@@ -1,0 +1,9 @@
+.git
+.gitignore
+*/data
+**/tmp
+README.md
+Makefile
+docker-compose.yml
+.vscode
+.idea
