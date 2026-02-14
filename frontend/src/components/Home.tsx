@@ -12,45 +12,45 @@ import ConsoleLog from "./ConsoleLog";
 
 export function Home() {
   return (
-    <>
-      <div className="container-fluid">
-        <div className="row header box">
-          <div className="colBox col-sm-4">
-            <div className="inlineBox">
-              <WeatherNow />
-            </div>
-            <div id="indoorContainer" className="inlineBox">
+    <div className="w-full px-4">
+      <div className="box grid grid-cols-1 gap-4 leading-8 sm:grid-cols-12">
+        <div className="sm:col-span-4">
+          <div className="flex flex-wrap items-start gap-4">
+            <WeatherNow />
+            <div id="indoorContainer">
               <Indoor />
               <Balcony />
             </div>
           </div>
-          <div className="col-sm-2">
-            <ElectricityPrice />
-            <Solar />
-          </div>
-          <div className="col-sm-2">
-            <CabinBookings />
-          </div>
-          <div className="d-none d-sm-block col-sm-3 timeBox offset-md-1">
+        </div>
+        <div className="sm:col-span-2">
+          <ElectricityPrice />
+          <Solar />
+        </div>
+        <div className="sm:col-span-2">
+          <CabinBookings />
+        </div>
+        <div className="hidden items-center sm:flex sm:col-span-4 md:col-span-3 md:col-start-10">
+          <div>
             <Time />
             <ConsoleLog />
           </div>
         </div>
-        <div className="row">
-          <div className="col-sm-5">
-            <Forecast />
-          </div>
-          <div className="col-sm-7">
-            <FamilyCalendar />
-          </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+        <div className="sm:col-span-5">
+          <Forecast />
         </div>
-        <div className="row">
-          <div className="col-sm-12">
-            <WeatherData />
-          </div>
+        <div className="sm:col-span-7">
+          <FamilyCalendar />
         </div>
       </div>
-    </>
+      <div className="grid grid-cols-1 gap-4">
+        <div className="col-span-1">
+          <WeatherData />
+        </div>
+      </div>
+    </div>
   );
 }
 

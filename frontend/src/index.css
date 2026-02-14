@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --bs-body-color: #fff;
   --bs-body-bg: #000;
@@ -38,21 +42,12 @@ input, select {
   border-radius: 4px;
 }
 
-.header {
-  line-height: 2em;
-}
-
 .box {
   background-color: rgba(24, 31, 52, 0.7);
   /*background-color: rgba(0,0,0,0.5);*/
   padding: 10px 20px 5px 20px;
   margin: 20px auto 5px auto;
   border-radius: 5px;
-}
-
-.inlineBox {
-  display: inline-block;
-  vertical-align: top;
 }
 
 #weatherNow {
@@ -440,12 +435,6 @@ h2.small {
 
 .iska {
   background-color: deepskyblue;
-}
-
-.timeBox {
-  height: 100px;
-  display: flex;
-  align-items: center;
 }
 
 .time {
