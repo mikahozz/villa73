@@ -1,13 +1,65 @@
-import { DateTime } from "luxon";
-import dummyBookings from "./components/dummy-bookings";
+import { DateTime, Duration } from "luxon";
 import { PRICE_RELEASE_TIME } from "./hooks/useElectricityPrices";
 
+// Toggle this to force stale timestamps and trigger outdated indicators in UI components.
+export const MOCK_FORCE_OUTDATED_TIMESTAMPS = false;
+
+const OUTDATED_THRESHOLDS: Record<string, Duration> = {
+  "/api/weathernow": Duration.fromObject({ hours: 1 }),
+  "/api/indoor/dev_upstairs": Duration.fromObject({ hours: 12 }),
+  "/api/indoor/Shelly": Duration.fromObject({ hours: 12 }),
+  "/api/cabinbookings/days/365": Duration.fromObject({ days: 1 }),
+};
+
+function timestampForEndpoint(
+  path: string,
+  freshOffset: Duration = Duration.fromObject({ minutes: 0 }),
+): string {
+  const now = DateTime.now().toUTC();
+  const threshold = OUTDATED_THRESHOLDS[path];
+
+  if (MOCK_FORCE_OUTDATED_TIMESTAMPS && threshold) {
+    return now
+      .minus(threshold)
+      .minus(Duration.fromObject({ minutes: 5 }))
+      .minus(freshOffset)
+      .toISO();
+  }
+
+  return now.minus(freshOffset).toISO();
+}
+
+function formatSunTime(time: DateTime): string {
+  return time.toFormat("h:mm:ss a");
+}
+
+function generateCabinBookings() {
+  const startDate = DateTime.now()
+    .toUTC()
+    .minus({ days: 365 / 2 })
+    .set({ hour: 16, minute: 0, second: 0, millisecond: 0 });
+
+  const bookings = [];
+  for (let i = 0; i < 365; i++) {
+    const date = startDate.plus({ days: i });
+    bookings.push({
+      date: date.toISO(),
+      booked: Math.random() > 0.7,
+      updated: date.minus({ days: Math.floor(Math.random() * 60) + 1 }).toISO(),
+    });
+  }
+
+  return {
+    bookings,
+    lastupdated: timestampForEndpoint("/api/cabinbookings/days/365"),
+  };
+}
+
 export function getMockData(path: string): object | undefined {
-  // Route handlers
   switch (path) {
     case "/api/electricity/current":
       return {
-        datetime: "2022-04-02T11:55:58.103Z",
+        datetime: DateTime.now().toUTC().toISO(),
         powerw: 2500,
       };
 
@@ -16,44 +68,24 @@ export function getMockData(path: string): object | undefined {
         battery: 100.0,
         humidity: 27.4,
         temperature: 22.5,
-        time: "2022-01-31T19:06:06.604000Z",
+        time: timestampForEndpoint("/api/indoor/dev_upstairs"),
       };
 
-    case "/api/weathernow":
-      return [
-        {
-          datetime: "2022-01-31T18:40:05Z",
-          temperature: -15.5,
-          humidity: 7.0,
-        },
-        {
-          datetime: "2022-01-31T18:50:05Z",
-          temperature: -5.5,
-          humidity: 7.0,
-        },
-        {
-          datetime: "2022-01-31T19:00:05Z",
-          temperature: -15.6,
-          humidity: 7.0,
-        },
-        {
-          datetime: "2022-01-31T19:10:05Z",
-          temperature: -15.6,
-          humidity: 7.0,
-        },
-        {
-          datetime: "2022-01-31T16:20:05Z",
-          temperature: -15.7,
-          humidity: 7.0,
-        },
-      ];
+    case "/api/weathernow": {
+      const latest = DateTime.fromISO(timestampForEndpoint("/api/weathernow"));
+      return [4, 3, 2, 1, 0].map((stepsAgo) => ({
+        datetime: latest.minus({ minutes: stepsAgo * 10 }).toISO(),
+        temperature: Math.round((Math.random() * 20 - 10) * 10) / 10,
+        humidity: Math.round(Math.random() * 1000) / 10,
+      }));
+    }
 
     case "/api/indoor/Shelly":
       return {
         battery: 92.0,
         humidity: 80.5,
         temperature: -3.5,
-        time: "2022-01-31T19:36:07.313000Z",
+        time: timestampForEndpoint("/api/indoor/Shelly"),
       };
 
     case "/api/electricity/prices": {
@@ -69,9 +101,7 @@ export function getMockData(path: string): object | undefined {
         DateTime.now().hour >= PRICE_RELEASE_TIME.hour &&
         DateTime.now().minute >= PRICE_RELEASE_TIME.minute
           ? dateTimeNowEven.plus({ days: 1 })
-          : dateTimeNowEven.set({
-              hour: 23,
-            });
+          : dateTimeNowEven.set({ hour: 23 });
 
       for (
         let i = dateTimeNowEven.minus({ hours: 5 });
@@ -87,17 +117,20 @@ export function getMockData(path: string): object | undefined {
     }
 
     case "/api/outdoor/now":
-      return [{ temperature: -5.7, time: "2022-01-31T19:20:05Z" }];
+      return [
+        {
+          temperature: -5.7,
+          time: DateTime.now().toUTC().toISO(),
+        },
+      ];
 
     case "/api/outdoor/history/Kumpula/30": {
-      // Generate mock weather history data
       const data = [];
-      const now = new Date();
+      const now = DateTime.now();
       for (let i = 0; i < 30; i++) {
-        const date = new Date();
-        date.setDate(now.getDate() - i);
+        const date = now.minus({ days: i });
         data.push({
-          dt: date.toISOString().split("T")[0],
+          dt: date.toISODate(),
           t2m: Math.round((Math.random() * 10 - 5) * 10) / 10,
           r_1h: Math.round(Math.random() * 5 * 10) / 10,
         });
@@ -106,14 +139,12 @@ export function getMockData(path: string): object | undefined {
     }
 
     case "/api/weatherfore": {
-      // Generate mock forecast data
       const data = [];
-      const now = new Date();
+      const now = DateTime.now();
       for (let i = 0; i < 48; i++) {
-        const date = new Date();
-        date.setHours(now.getHours() + i);
+        const date = now.plus({ hours: i });
         data.push({
-          datetime: date.toISOString(),
+          datetime: date.toISO(),
           weather: i % 5 === 0 ? "1" : "2",
           temperature: Math.round((Math.random() * 10 - 5) * 10) / 10,
           wind_dir: Math.round(Math.random() * 360),
@@ -124,118 +155,138 @@ export function getMockData(path: string): object | undefined {
       return data;
     }
 
-    case "/api/cabinbookings/days/365": {
-      return dummyBookings;
-      // Generate mock cabin booking data
-      const bookings = [];
-      const startDate = DateTime.now()
-        .toUTC()
-        .minus({ days: 365 / 2 })
-        .set({ hour: 16, minute: 0, second: 0, millisecond: 0 });
-      for (let i = 0; i < 365; i++) {
-        const newDate = startDate.plus({ days: i });
-        bookings.push({
-          date: newDate.toISO(),
-          booked: Math.random() > 0.7,
-          updated: newDate
-            .minus({ days: Math.floor(Math.random() * 60) + 1 })
-            .toISO(),
-        });
-      }
-      return {
-        bookings,
-        lastupdated: DateTime.now().toISO(),
-      };
-    }
+    case "/api/cabinbookings/days/365":
+      return generateCabinBookings();
 
     case "/api/events": {
-      // Generate mock calendar events
       const events = [];
-      const now = new Date();
+      const now = DateTime.now();
       const eventTypes = [
         "Family dinner",
         "Elise's soccer",
         "Elias's hockey",
         "Ella's dance",
-        "äiti's meeting",
-        "iskä's work trip",
+        "aiti's meeting",
+        "iska's work trip",
       ];
 
       for (let i = 0; i < 10; i++) {
-        const date = new Date();
-        date.setDate(now.getDate() + Math.floor(i / 2));
+        const date = now.plus({ days: Math.floor(i / 2) });
         const startHour = 8 + Math.floor(Math.random() * 12);
         const endHour = startHour + 1 + Math.floor(Math.random() * 3);
 
-        const start = new Date(date);
-        start.setHours(startHour, 0, 0);
+        const start = date.set({
+          hour: startHour,
+          minute: 0,
+          second: 0,
+          millisecond: 0,
+        });
 
-        const end = new Date(date);
-        end.setHours(endHour, 0, 0);
+        const end = date.set({
+          hour: endHour,
+          minute: 0,
+          second: 0,
+          millisecond: 0,
+        });
 
         events.push({
           uid: `event-${i}`,
           summary: eventTypes[i % eventTypes.length],
-          start: start.toISOString(),
-          end: end.toISOString(),
+          start: start.toISO(),
+          end: end.toISO(),
         });
       }
       return events;
     }
 
     case "/api/sun": {
-      // Create sun data for today and tomorrow directly
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-      const dayAfterTomorrow = new Date(today);
-      dayAfterTomorrow.setDate(today.getDate() + 2);
-      // Format dates as YYYY-MM-DD
-      const todayFormatted = today.toISOString().split("T")[0];
-      const tomorrowFormatted = tomorrow.toISOString().split("T")[0];
-      const dayAfterTomorrowFormatted = dayAfterTomorrow
-        .toISOString()
-        .split("T")[0];
-      // Create the sun data directly
+      const today = DateTime.now();
+      const tomorrow = today.plus({ days: 1 });
+      const dayAfterTomorrow = today.plus({ days: 2 });
+
       return [
         {
-          date: todayFormatted,
-          sunrise: "6:23:21 AM",
-          sunset: "6:34:44 PM",
-          first_light: "3:56:42 AM",
-          last_light: "9:01:22 PM",
-          dawn: "5:41:33 AM",
-          dusk: "7:16:32 PM",
-          solar_noon: "12:29:02 PM",
-          golden_hour: "5:39:29 PM",
+          date: today.toISODate(),
+          sunrise: formatSunTime(
+            today.set({ hour: 6, minute: 23, second: 21 }),
+          ),
+          sunset: formatSunTime(
+            today.set({ hour: 18, minute: 34, second: 44 }),
+          ),
+          first_light: formatSunTime(
+            today.set({ hour: 3, minute: 56, second: 42 }),
+          ),
+          last_light: formatSunTime(
+            today.set({ hour: 21, minute: 1, second: 22 }),
+          ),
+          dawn: formatSunTime(today.set({ hour: 5, minute: 41, second: 33 })),
+          dusk: formatSunTime(today.set({ hour: 19, minute: 16, second: 32 })),
+          solar_noon: formatSunTime(
+            today.set({ hour: 12, minute: 29, second: 2 }),
+          ),
+          golden_hour: formatSunTime(
+            today.set({ hour: 17, minute: 39, second: 29 }),
+          ),
           day_length: "12:11:22",
           timezone: "Europe/Helsinki",
           utc_offset: 120,
         },
         {
-          date: tomorrowFormatted,
-          sunrise: "6:20:17 AM",
-          sunset: "6:37:10 PM",
-          first_light: "3:52:52 AM",
-          last_light: "9:04:35 PM",
-          dawn: "5:38:25 AM",
-          dusk: "7:19:02 PM",
-          solar_noon: "12:28:44 PM",
-          golden_hour: "5:41:59 PM",
+          date: tomorrow.toISODate(),
+          sunrise: formatSunTime(
+            tomorrow.set({ hour: 6, minute: 20, second: 17 }),
+          ),
+          sunset: formatSunTime(
+            tomorrow.set({ hour: 18, minute: 37, second: 10 }),
+          ),
+          first_light: formatSunTime(
+            tomorrow.set({ hour: 3, minute: 52, second: 52 }),
+          ),
+          last_light: formatSunTime(
+            tomorrow.set({ hour: 21, minute: 4, second: 35 }),
+          ),
+          dawn: formatSunTime(
+            tomorrow.set({ hour: 5, minute: 38, second: 25 }),
+          ),
+          dusk: formatSunTime(
+            tomorrow.set({ hour: 19, minute: 19, second: 2 }),
+          ),
+          solar_noon: formatSunTime(
+            tomorrow.set({ hour: 12, minute: 28, second: 44 }),
+          ),
+          golden_hour: formatSunTime(
+            tomorrow.set({ hour: 17, minute: 41, second: 59 }),
+          ),
           day_length: "12:16:53",
           timezone: "Europe/Helsinki",
           utc_offset: 120,
         },
         {
-          date: dayAfterTomorrowFormatted,
-          sunrise: "6:18:10 AM",
-          sunset: "6:39:22 PM",
-          first_light: "3:50:23 AM",
-          last_light: "9:06:58 PM",
-          dawn: "5:36:17 AM",
-          dusk: "7:20:32 PM",
-          solar_noon: "12:28:20 PM",
-          golden_hour: "5:44:25 PM",
+          date: dayAfterTomorrow.toISODate(),
+          sunrise: formatSunTime(
+            dayAfterTomorrow.set({ hour: 6, minute: 18, second: 10 }),
+          ),
+          sunset: formatSunTime(
+            dayAfterTomorrow.set({ hour: 18, minute: 39, second: 22 }),
+          ),
+          first_light: formatSunTime(
+            dayAfterTomorrow.set({ hour: 3, minute: 50, second: 23 }),
+          ),
+          last_light: formatSunTime(
+            dayAfterTomorrow.set({ hour: 21, minute: 6, second: 58 }),
+          ),
+          dawn: formatSunTime(
+            dayAfterTomorrow.set({ hour: 5, minute: 36, second: 17 }),
+          ),
+          dusk: formatSunTime(
+            dayAfterTomorrow.set({ hour: 19, minute: 20, second: 32 }),
+          ),
+          solar_noon: formatSunTime(
+            dayAfterTomorrow.set({ hour: 12, minute: 28, second: 20 }),
+          ),
+          golden_hour: formatSunTime(
+            dayAfterTomorrow.set({ hour: 17, minute: 44, second: 25 }),
+          ),
           day_length: "12:23:08",
           timezone: "Europe/Helsinki",
           utc_offset: 120,
