@@ -8,7 +8,13 @@ RUN npm install -g "pnpm@${PNPM_VERSION}"
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY . .
+# Copy only files required for the Vite build.
+# Keep nginx.conf out of this stage so nginx-only changes do not invalidate pnpm build cache.
+COPY index.html ./
+COPY tsconfig.json tsconfig.app.json tsconfig.node.json ./
+COPY vite.config.ts postcss.config.js tailwind.config.js ./
+COPY public ./public
+COPY src ./src
 RUN pnpm run build
 
 # Production stage
