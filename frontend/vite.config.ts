@@ -15,7 +15,6 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  base: "./", // This makes asset paths relative
   build: {
     assetsDir: "assets",
     rollupOptions: {
