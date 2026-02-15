@@ -13,28 +13,24 @@ import ConsoleLog from "./ConsoleLog";
 export function Home() {
   return (
     <div className="w-full px-4">
-      <div className="box grid grid-cols-1 gap-4 leading-8 sm:grid-cols-12">
-        <div className="sm:col-span-4">
-          <div className="flex flex-wrap items-start gap-4">
-            <WeatherNow />
-            <div id="indoorContainer">
-              <Indoor />
-              <Balcony />
-            </div>
-          </div>
+      <ConsoleLog />
+      <div className="box flex flex-col gap-4 leading-8 sm:flex-row sm:flex-wrap sm:[&>*]:flex sm:[&>*]:justify-center sm:[&>*:first-child]:justify-start sm:[&>*:last-child]:justify-end">
+        <div className="sm:flex-1">
+          <WeatherNow />
         </div>
-        <div className="sm:col-span-2">
+        <div className="sm:flex-1" id="indoorContainer">
+          <Indoor />
+          <Balcony />
+        </div>
+        <div className="sm:flex-1 flex-col">
           <ElectricityPrice />
           <Solar />
         </div>
-        <div className="sm:col-span-2">
+        <div className="sm:flex-1">
           <CabinBookings />
         </div>
-        <div className="hidden items-center sm:flex sm:col-span-4 md:col-span-3 md:col-start-10">
-          <div>
-            <Time />
-            <ConsoleLog />
-          </div>
+        <div className="sm:flex-1">
+          <Time />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">

@@ -1,10 +1,16 @@
 # Agent Instructions
 
 ## Command policy
+
 - Prefer root `Makefile` targets over ad-hoc shell commands for local dev checks and Docker workflows.
 - When a matching target exists, use `make <target>` from repo root.
 
+## Commit messages
+
+- When creating automatic commit messages, summarize the key change and its purpose in one line. Then write a more thorough change description on a separate paragraph below.
+
 ## Preferred targets
+
 - Stack lifecycle:
   - `make compose-config`
   - `make compose-ps`
@@ -24,5 +30,6 @@
   - `make check-legacy-indoor`
 
 ## Notes
+
 - Legacy bridge checks may return `502` when legacy services are offline; this is expected and should not block nginx startup.
 - Add new recurring verification commands to the root `Makefile` and then use them via `make`.
