@@ -1,8 +1,9 @@
 # Build stage
-FROM node:20-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 WORKDIR /app
 
-RUN corepack enable
+ARG PNPM_VERSION=10.29.3
+RUN npm install -g "pnpm@${PNPM_VERSION}"
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile

@@ -16,6 +16,8 @@
   - `make check-api-proxy`
   - `make check-api-direct`
   - `make check-all`
+- Platform parity checks:
+  - `make web-build-arm64`
 - Legacy bridge checks:
   - `make check-legacy-cabin`
   - `make check-legacy-electricity`

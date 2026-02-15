@@ -1,7 +1,7 @@
 .PHONY: \
 	compose-config compose-ps compose-up compose-up-web compose-down compose-logs \
 	check-api-proxy check-api-direct check-legacy-cabin check-legacy-electricity check-legacy-indoor \
-	check-all
+	check-all web-build-arm64
 
 COMPOSE := docker compose
 WEB_BASE := http://localhost:3000
@@ -46,3 +46,7 @@ check-legacy-indoor:
 	curl -sS -D - "$(WEB_BASE)/api/indoor/dev_upstairs" -o /tmp/villa73_legacy_indoor.txt | sed -n '1,20p'
 
 check-all: compose-ps check-api-proxy check-api-direct
+
+# Build web image for Raspberry Pi parity (linux/arm64) without deploying.
+web-build-arm64:
+	docker buildx build --platform linux/arm64 -f frontend/Dockerfile -t villa73-web:arm64-check frontend
