@@ -6,6 +6,8 @@ export interface WeatherData {
 }
 
 export default function useWeatherNow() {
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+
   return useQuery<WeatherData[]>({
     queryKey: ["weatherNow"],
     queryFn: async () => {
@@ -20,7 +22,9 @@ export default function useWeatherNow() {
       }
       return data;
     },
-    staleTime: 60 * 60 * 1000, // 1 hour in ms
+    staleTime: ONE_HOUR_MS,
+    refetchInterval: ONE_HOUR_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     retry: Infinity,
