@@ -22,6 +22,16 @@ services:
       - 6001:6001
     networks:
       - default
+  scheduler:
+    image: villa73-scheduler
+    restart: unless-stopped
+    build:
+      context: ./backend
+      dockerfile: ./cmd/scheduler/Dockerfile
+    ports:
+      - 6002:6002
+    networks:
+      - default
 
 networks:
   old_stack:
