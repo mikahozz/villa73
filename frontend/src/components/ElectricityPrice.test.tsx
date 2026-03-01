@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // React component test for ElectricityPrice: documents polling logic and accessibility data list.
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";

@@ -199,6 +199,36 @@ export function getMockData(path: string): object | undefined {
       return events;
     }
 
+    case "/api/family/tasks": {
+      const now = DateTime.now();
+      return [
+        {
+          id: "mock-task-1",
+          title: "Tidy playroom",
+          note: "ella, jotain lisatietoa",
+          labels: ["2", "home"],
+          size: 2,
+          assignee: "Ella",
+          createdAt: now.minus({ hours: 4 }).toISO(),
+        },
+        {
+          id: "mock-task-2",
+          title: "Take recycling out",
+          note: "tehtava: iskä",
+          labels: ["3"],
+          size: 3,
+          assignee: "Iskä",
+          createdAt: now.minus({ hours: 2 }).toISO(),
+        },
+      ];
+    }
+
+    case "/api/family/tasks/complete":
+      return {
+        completedTaskId: "mock-task-1",
+        completer: "Ella",
+      };
+
     case "/api/sun": {
       const today = DateTime.now();
       const tomorrow = today.plus({ days: 1 });

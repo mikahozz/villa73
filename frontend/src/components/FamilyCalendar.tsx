@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import moment from "moment";
 import _ from "lodash";
+import { FamilyTasksCard } from "./FamilyTasksCard";
 
 interface CalendarEvent {
   uid: string;
@@ -48,7 +49,7 @@ export function FamilyCalendar() {
   const renderCalendarContents = (calendardata: GroupedEvents) => {
     return Object.keys(calendardata).map((calitem) => (
       <div key={calitem}>
-        <h3>{renderDate(calitem)}</h3>
+        <h3 className="calendarDayHeading">{renderDate(calitem)}</h3>
         {calendardata[calitem].map((eventItem) => (
           <div
             key={eventItem.uid}
@@ -132,6 +133,7 @@ export function FamilyCalendar() {
   return (
     <div id="calendardata" className="box">
       <h2>Upcoming family events</h2>
+      <FamilyTasksCard />
       {contents}
     </div>
   );

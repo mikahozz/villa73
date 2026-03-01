@@ -34,10 +34,10 @@ export function Home() {
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-        <div className="sm:col-span-5">
+        <div className="sm:col-span-5 panelColumn">
           <Forecast />
         </div>
-        <div className="sm:col-span-7">
+        <div className="sm:col-span-7 panelColumn">
           <FamilyCalendar />
         </div>
       </div>
