@@ -86,16 +86,16 @@ export function useCompleteFamilyTask() {
       taskId: string;
       completer: string;
     }) => postCompleteTask(taskId, completer),
-    onSuccess: (data) => {
+    onSuccess: (_data, variables) => {
       queryClient.setQueryData(
         FAMILY_TASKS_QUERY_KEY,
         (oldData: FamilyTask[] | undefined) =>
           oldData?.map((task) =>
-            task.id === data.completedTaskId
+            task.id === variables.taskId
               ? {
                   ...task,
                   completed: true,
-                  completedBy: data.completer,
+                  completedBy: variables.completer,
                 }
               : task,
           ) ?? [],

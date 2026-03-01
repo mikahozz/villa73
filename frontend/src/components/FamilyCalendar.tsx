@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import moment from "moment";
 import _ from "lodash";
-import { FamilyTasksCard } from "./FamilyTasksCard";
 
 interface CalendarEvent {
   uid: string;
@@ -33,10 +32,10 @@ export function FamilyCalendar() {
       const data = await response.json();
       const sorted = _.sortBy(
         data,
-        (element: CalendarEvent) => new Date(element.start)
+        (element: CalendarEvent) => new Date(element.start),
       );
       const grouped = _.groupBy(sorted, (element: CalendarEvent) =>
-        new Date(element.start).setHours(0, 0, 0, 0).toString()
+        new Date(element.start).setHours(0, 0, 0, 0).toString(),
       );
 
       setCalendardata(grouped);
@@ -133,7 +132,6 @@ export function FamilyCalendar() {
   return (
     <div id="calendardata" className="box">
       <h2>Upcoming family events</h2>
-      <FamilyTasksCard />
       {contents}
     </div>
   );

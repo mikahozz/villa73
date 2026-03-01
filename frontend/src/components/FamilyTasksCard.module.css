@@ -31,12 +31,12 @@
 .cardsTrack {
   display: flex;
   align-items: flex-start;
-  gap: 0;
+  gap: 16px;
   overflow-x: auto;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
 .cardsViewport {
@@ -54,15 +54,24 @@
   flex: 0 0 100%;
   width: 100%;
   scroll-snap-align: start;
+  scroll-snap-stop: always;
   padding: 14px;
   border-radius: 30px;
-  border: 1px solid rgba(106, 132, 200, 0.22);
-  background: linear-gradient(
-    102deg,
-    rgba(20, 27, 48, 0.96),
-    rgba(17, 24, 43, 0.98) 46%,
-    rgba(20, 30, 55, 0.96) 100%
-  );
+  border: 2px solid transparent;
+  background:
+    linear-gradient(
+      102deg,
+      rgba(20, 27, 48, 0.96),
+      rgba(17, 24, 43, 0.98) 46%,
+      rgba(20, 30, 55, 0.96) 100%
+    ) padding-box,
+    linear-gradient(
+      135deg,
+      rgba(78, 216, 134, 0.95) 0%,
+      rgba(68, 208, 127, 0.76) 28%,
+      rgba(92, 230, 149, 0.4) 62%,
+      rgba(112, 242, 164, 0.3) 100%
+    ) border-box;
   color: #d2d8e6;
   /* padding: 18px 46px 14px; */
   text-align: left;
@@ -85,14 +94,16 @@
 }
 
 .deleteTaskButton {
-  position: absolute;
+  /* position: absolute;
   top: 10px;
-  right: 10px;
+  right: 10px; */
+  margin-top: -8px;
+  margin-right: -4px;
   width: 28px;
   height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(158, 177, 219, 0.35);
-  background: rgba(17, 22, 40, 0.75);
+  /* border-radius: 999px;
+  border: 1px solid rgba(158, 177, 219, 0.35); */
+  /* background: rgba(17, 22, 40, 0.75); */
   color: rgba(223, 231, 248, 0.85);
   display: inline-flex;
   align-items: center;
@@ -122,15 +133,25 @@
 .taskCardHeader {
   display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 28px;
 }
 
 .taskTitleWrap {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+.sizeBiceps {
+  flex-shrink: 0;
+  color: rgba(117, 247, 178, 0.95);
+  /* font-size: 0.86rem; */
+  justify-self: flex-end;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .taskIcon {
@@ -147,11 +168,12 @@
 }
 
 .taskIcon svg {
-  width: 42px;
-  height: 42px;
+  width: 32px;
+  height: 32px;
 } 
 
 .taskTitle {
+  flex: 1;
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.25;
@@ -256,67 +278,75 @@
   color: rgba(117, 247, 178, 1);
 }
 
-.sizeBadge {
-  border-radius: 999px;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
+.completePromptOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(3, 7, 16, 0.62);
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  margin-left: auto;
-  background: rgba(74, 88, 122, 0.4);
-  color: rgba(200, 212, 242, 0.95);
-  font-size: 0.76rem;
-  font-weight: 700;
+  padding: 18px;
 }
 
-@media (max-width: 900px) {
-  .taskCard {
-    border-radius: 18px;
-    padding: 16px 24px 12px;
-  }
+.completePromptCard {
+  width: min(420px, 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(100, 221, 151, 0.52);
+  background: linear-gradient(
+    145deg,
+    rgba(13, 23, 41, 0.98),
+    rgba(18, 33, 59, 0.98)
+  );
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.46);
+  padding: 16px;
+}
 
-  .cardsTrack {
-    gap: 0;
-  }
+.completePromptTitle {
+  margin: 0;
+  color: rgba(228, 236, 249, 0.98);
+  font-size: 1rem;
+}
 
-  .taskIcon {
-    width: 34px;
-    height: 34px;
-    border-width: 2px;
-  }
+.completePromptText {
+  margin: 8px 0 12px;
+  color: rgba(177, 191, 219, 0.92);
+  font-size: 0.9rem;
+}
 
-  .taskTitle {
-    font-size: 0.95rem;
-  }
+.completePromptSelect {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(108, 132, 182, 0.58);
+  background: rgba(13, 19, 36, 0.78);
+  color: rgba(232, 239, 251, 0.98);
+  padding: 9px 10px;
+}
 
-  .taskBody {
-    max-height: 5rem;
-    margin-top: 10px;
-  }
+.completePromptActions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
-  .taskNote {
-    font-size: 0.86rem;
-  }
+.completePromptButton,
+.completePromptButtonGhost {
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 7px 10px;
+}
 
-  .taskNoteMuted {
-    font-size: 0.82rem;
-  }
+.completePromptButton {
+  border: 1px solid rgba(87, 228, 149, 0.64);
+  background: rgba(22, 96, 65, 0.46);
+  color: rgba(127, 246, 181, 0.98);
+}
 
-  .completerSelect {
-    font-size: 0.88rem;
-  }
-
-  .openCompleteButton {
-    font-size: 0.86rem;
-    border-radius: 10px;
-    padding: 5px 10px;
-  }
-
-  .sizeBadge {
-    width: 22px;
-    height: 22px;
-    font-size: 0.72rem;
-  }
+.completePromptButtonGhost {
+  border: 1px solid rgba(122, 142, 188, 0.56);
+  background: rgba(36, 44, 68, 0.52);
+  color: rgba(211, 222, 245, 0.96);
 }

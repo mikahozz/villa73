@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { FamilyTasksCard } from "./FamilyTasksCard";
 import * as familyTasksHook from "../hooks/useFamilyTasks";
 
@@ -121,6 +121,42 @@ describe("FamilyTasksCard", () => {
     expect(mutateAsync).toHaveBeenCalledWith({
       taskId: "task-1",
       completer: "Elias",
+    });
+    expect(await screen.findByTestId("task-completed")).toBeDefined();
+  });
+
+  test("prompts when task has no assignee and allows skipping completer", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({
+      completedTaskId: "task-1",
+      completer: "Unknown",
+    });
+    mockedUseCompleteFamilyTask.mockReturnValue({
+      mutateAsync,
+      isPending: false,
+    } as unknown as ReturnType<typeof familyTasksHook.useCompleteFamilyTask>);
+    mockedUseFamilyTasks.mockReturnValue({
+      data: [
+        {
+          id: "task-1",
+          title: "Task without assignee",
+          note: "",
+          labels: ["1"],
+          size: 1,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof familyTasksHook.useFamilyTasks>);
+
+    renderComponent();
+    expect(screen.queryByTestId("completer-select")).toBeNull();
+    fireEvent.click(screen.getByTestId("complete-task-button"));
+    const prompt = await screen.findByTestId("complete-prompt");
+    fireEvent.click(within(prompt).getByRole("button", { name: "Complete task" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith({
+      taskId: "task-1",
+      completer: "Unknown",
     });
     expect(await screen.findByTestId("task-completed")).toBeDefined();
   });

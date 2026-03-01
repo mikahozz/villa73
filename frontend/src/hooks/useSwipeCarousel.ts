@@ -34,6 +34,7 @@ export function useSwipeCarousel({
   const settleTimeoutRef = useRef<number | null>(null);
   const dragStartXRef = useRef<number | null>(null);
   const dragStartIndexRef = useRef<number | null>(null);
+  const gestureTargetIndexRef = useRef<number | null>(null);
 
   const clampIndex = useCallback(
     (value: number) => Math.max(0, Math.min(count - 1, value)),
@@ -96,14 +97,26 @@ export function useSwipeCarousel({
   }, [index, syncViewportHeight]);
 
   const settle = useCallback(() => {
-    const nearestIndex = getNearestIndex();
-    setIndexState(nearestIndex);
-    scrollToIndex(nearestIndex, "auto");
+    const targetIndex = gestureTargetIndexRef.current ?? getNearestIndex();
+    gestureTargetIndexRef.current = null;
+    setIndexState(targetIndex);
+    scrollToIndex(targetIndex, "auto");
     setIsInteracting(false);
-    syncViewportHeight(nearestIndex);
+    syncViewportHeight(targetIndex);
   }, [getNearestIndex, scrollToIndex, syncViewportHeight]);
 
   const onTrackScroll = useCallback(() => {
+    const lockedTargetIndex = gestureTargetIndexRef.current;
+    if (lockedTargetIndex != null) {
+      setIndexState((prev) => (prev === lockedTargetIndex ? prev : lockedTargetIndex));
+      setIsInteracting(true);
+      if (settleTimeoutRef.current != null) {
+        window.clearTimeout(settleTimeoutRef.current);
+      }
+      settleTimeoutRef.current = window.setTimeout(settle, settleDelayMs);
+      return;
+    }
+
     const nextIndex = getNearestIndex();
     setIndexState((prev) => (prev === nextIndex ? prev : nextIndex));
     setIsInteracting(true);
@@ -137,6 +150,7 @@ export function useSwipeCarousel({
       const nextIndex = hasSwipeIntent
         ? clampIndex(baseIndex + (deltaX > 0 ? 1 : -1))
         : getNearestIndex();
+      gestureTargetIndexRef.current = hasSwipeIntent ? nextIndex : null;
       if (settleTimeoutRef.current != null) {
         window.clearTimeout(settleTimeoutRef.current);
         settleTimeoutRef.current = null;
@@ -189,6 +203,7 @@ export function useSwipeCarousel({
     onPointerCancel: () => {
       dragStartXRef.current = null;
       dragStartIndexRef.current = null;
+      gestureTargetIndexRef.current = null;
       setIsInteracting(false);
     },
   };

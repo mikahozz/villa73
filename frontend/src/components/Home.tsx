@@ -9,6 +9,7 @@ import { CabinBookings } from "./CabinBookings";
 import { ElectricityPrice } from "./ElectricityPrice";
 import { Solar } from "./Solar";
 import ConsoleLog from "./ConsoleLog";
+import { FamilyTasksCard } from "./FamilyTasksCard";
 
 export function Home() {
   return (
@@ -38,6 +39,7 @@ export function Home() {
           <Forecast />
         </div>
         <div className="sm:col-span-7 panelColumn">
+          <FamilyTasksCard />
           <FamilyCalendar />
         </div>
       </div>
