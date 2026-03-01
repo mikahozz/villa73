@@ -237,6 +237,11 @@ export function getMockData(path: string): object | undefined {
         completer: "Ella",
       };
 
+    case "/api/family/tasks/delete":
+      return {
+        deletedTaskId: "mock-task-1",
+      };
+
     case "/api/sun": {
       const today = DateTime.now();
       const tomorrow = today.plus({ days: 1 });

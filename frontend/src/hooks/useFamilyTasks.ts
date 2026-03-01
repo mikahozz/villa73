@@ -108,11 +108,11 @@ export function useDeleteFamilyTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ taskId }: { taskId: string }) => postDeleteTask(taskId),
-    onSuccess: (data) => {
+    onSuccess: (_data, variables) => {
       queryClient.setQueryData(
         FAMILY_TASKS_QUERY_KEY,
         (oldData: FamilyTask[] | undefined) =>
-          oldData?.filter((task) => task.id !== data.deletedTaskId) ?? [],
+          oldData?.filter((task) => task.id !== variables.taskId) ?? [],
       );
     },
   });

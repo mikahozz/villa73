@@ -345,6 +345,16 @@
   color: rgba(127, 246, 181, 0.98);
 }
 
+.completePromptButtonDanger {
+  border: 1px solid rgba(235, 103, 121, 0.68);
+  background: rgba(118, 34, 48, 0.48);
+  color: rgba(255, 170, 180, 0.98);
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 7px 10px;
+}
+
 .completePromptButtonGhost {
   border: 1px solid rgba(122, 142, 188, 0.56);
   background: rgba(36, 44, 68, 0.52);

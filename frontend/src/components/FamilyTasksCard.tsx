@@ -28,6 +28,9 @@ export function FamilyTasksCard() {
   const [completionPromptTaskId, setCompletionPromptTaskId] = useState<
     string | null
   >(null);
+  const [deletePromptTaskId, setDeletePromptTaskId] = useState<string | null>(
+    null,
+  );
 
   const carousel = useSwipeCarousel({ count: tasks.length });
 
@@ -67,11 +70,8 @@ export function FamilyTasksCard() {
     await completeTaskWithCompleter(task, completer || task.assignee);
   };
 
-  const onDeleteTask = async (task: FamilyTask) => {
-    if (!window.confirm(`Delete task "${task.title}" permanently?`)) {
-      return;
-    }
-    await deleteTask({ taskId: task.id });
+  const onDeleteTaskRequest = (task: FamilyTask) => {
+    setDeletePromptTaskId(task.id);
   };
 
   if (!isLoading && tasks.length === 0) {
@@ -82,6 +82,7 @@ export function FamilyTasksCard() {
   const promptCompleter = promptTask
     ? (completerByTaskId[promptTask.id] ?? "").trim()
     : "";
+  const deletePromptTask = tasks.find((task) => task.id === deletePromptTaskId);
 
   return (
     <div className={styles.container} data-testid="family-tasks-container">
@@ -182,7 +183,7 @@ export function FamilyTasksCard() {
                         type="button"
                         className={styles.deleteTaskButton}
                         aria-label={`Delete task ${task.title}`}
-                        onClick={() => onDeleteTask(task)}
+                        onClick={() => onDeleteTaskRequest(task)}
                         disabled={isDeleting}
                       >
                         <Cross2Icon />
@@ -283,6 +284,37 @@ export function FamilyTasksCard() {
                 disabled={isCompleting}
               >
                 Complete task
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deletePromptTask ? (
+        <div className={styles.completePromptOverlay} data-testid="delete-prompt">
+          <div className={styles.completePromptCard}>
+            <h4 className={styles.completePromptTitle}>Delete task</h4>
+            <p className={styles.completePromptText}>
+              Delete "{deletePromptTask.title}" permanently?
+            </p>
+            <div className={styles.completePromptActions}>
+              <button
+                type="button"
+                className={styles.completePromptButtonGhost}
+                onClick={() => setDeletePromptTaskId(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.completePromptButtonDanger}
+                onClick={async () => {
+                  await deleteTask({ taskId: deletePromptTask.id });
+                  setDeletePromptTaskId(null);
+                }}
+                disabled={isDeleting}
+              >
+                Delete task
               </button>
             </div>
           </div>

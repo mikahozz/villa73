@@ -40,7 +40,6 @@ describe("FamilyTasksCard", () => {
       }),
       isPending: false,
     } as unknown as ReturnType<typeof familyTasksHook.useDeleteFamilyTask>);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -161,7 +160,7 @@ describe("FamilyTasksCard", () => {
     expect(await screen.findByTestId("task-completed")).toBeDefined();
   });
 
-  test("deletes task after confirmation", async () => {
+  test("deletes task from confirmation dialog", async () => {
     const mutateAsync = vi.fn().mockResolvedValue({
       deletedTaskId: "task-1",
     });
@@ -186,8 +185,8 @@ describe("FamilyTasksCard", () => {
 
     renderComponent();
     fireEvent.click(screen.getByRole("button", { name: "Delete task Task to delete" }));
-
-    expect(window.confirm).toHaveBeenCalled();
+    const prompt = await screen.findByTestId("delete-prompt");
+    fireEvent.click(within(prompt).getByRole("button", { name: "Delete task" }));
     expect(mutateAsync).toHaveBeenCalledWith({ taskId: "task-1" });
   });
 });
