@@ -77,6 +77,9 @@ func main() {
 		},
 		Action: func(ctx context.Context) error { return shelly.TurnOn(ctx) },
 	})
+	// Morning light schedules share a category so they execute in insertion order.
+	// If both are due in the same evaluation cycle, sunrise OFF runs after 6:45 ON
+	// and can intentionally override it.
 	scheduler.AddSchedule(&DailySchedule{
 		Name:     "Morning lights OFF at sunrise",
 		Category: "night_lights",

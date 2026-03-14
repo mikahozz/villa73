@@ -155,14 +155,12 @@ func TestCategorySupersede(t *testing.T) {
 	scheduler.AddSchedule(&DailySchedule{Name: "Second", Category: "group1", Trigger: Trigger{Time: trig}, Action: makeAction("Second")})
 	scheduler.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 10, 5, 0, 0, time.Local))
 	time.Sleep(100 * time.Millisecond)
-	// Expect only last (Second) executed
-	assert.Equal(t, []string{"Second"}, executed)
-	if !scheduler.schedules[1].LastTriggered.IsZero() && !scheduler.schedules[0].LastTriggered.IsZero() {
-		t.Fatalf("expected only last schedule LastTriggered to be set")
-	}
+	assert.Equal(t, []string{"First", "Second"}, executed)
+	assert.False(t, scheduler.schedules[0].LastTriggered.IsZero(), "expected first schedule LastTriggered to be set")
+	assert.False(t, scheduler.schedules[1].LastTriggered.IsZero(), "expected second schedule LastTriggered to be set")
 }
 
-func TestCategorySupersedeLatestTimeWins(t *testing.T) {
+func TestCategoryInsertionOrderOverridesTriggerTime(t *testing.T) {
 	now := time.Now()
 	// Two schedules in same category with different trigger times; added in reverse chronological order
 	trigLate := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, time.Local) }
@@ -184,16 +182,9 @@ func TestCategorySupersedeLatestTimeWins(t *testing.T) {
 	// Evaluate after both times passed
 	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, time.Local))
 	time.Sleep(100 * time.Millisecond)
-	// Expect only Late executed because its trigger time (15:00) is later than 10:00
-	assert.Equal(t, []string{"Late"}, executed)
-	if s.schedules[0].LastTriggered.IsZero() || !s.schedules[1].LastTriggered.IsZero() {
-		// schedules[0] is Late, schedules[1] is Early
-		if s.schedules[1].LastTriggered.IsZero() {
-			// ok
-		} else {
-			t.Fatalf("expected Early not to have LastTriggered set")
-		}
-	}
+	assert.Equal(t, []string{"Late", "Early"}, executed)
+	assert.False(t, s.schedules[0].LastTriggered.IsZero(), "expected late schedule LastTriggered to be set")
+	assert.False(t, s.schedules[1].LastTriggered.IsZero(), "expected early schedule LastTriggered to be set")
 }
 
 func TestEarlierScheduleDoesNotRunAfterLaterTriggered(t *testing.T) {
@@ -223,6 +214,95 @@ func TestEarlierScheduleDoesNotRunAfterLaterTriggered(t *testing.T) {
 	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 20, 0, 0, 0, time.Local))
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, []string{"Early", "Late"}, executed)
+}
+
+func TestSunriseBefore645ExecutesInInsertionOrder(t *testing.T) {
+	now := time.Now()
+	trigMorningOn := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 6, 45, 0, 0, time.Local) }
+	trigSunriseOff := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 6, 30, 0, 0, time.Local) }
+	var mu sync.Mutex
+	executed := []string{}
+	act := func(name string) func(context.Context) error {
+		return func(ctx context.Context) error {
+			mu.Lock()
+			executed = append(executed, name)
+			mu.Unlock()
+			return nil
+		}
+	}
+
+	s := NewScheduler()
+	s.AddSchedule(&DailySchedule{Name: "Morning lights ON at 6:45", Category: "night_lights", Trigger: Trigger{Time: trigMorningOn}, Action: act("ON")})
+	s.AddSchedule(&DailySchedule{Name: "Morning lights OFF at sunrise", Category: "night_lights", Trigger: Trigger{Time: trigSunriseOff}, Action: act("OFF")})
+
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 7, 0, 0, 0, time.Local))
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Equal(t, []string{"ON", "OFF"}, executed)
+}
+
+func TestOverdueSchedulesRunOnlyForCurrentDay(t *testing.T) {
+	now := time.Now()
+	var called bool
+	act := func(ctx context.Context) error {
+		called = true
+		return nil
+	}
+
+	s := NewScheduler()
+	s.AddSchedule(&DailySchedule{
+		Name:     "Yesterday schedule",
+		Category: "overdue",
+		Trigger: Trigger{
+			Time: func() time.Time {
+				yesterday := now.Add(-24 * time.Hour)
+				return time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 10, 0, 0, 0, time.Local)
+			},
+		},
+		Action: act,
+	})
+
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.Local))
+	time.Sleep(50 * time.Millisecond)
+
+	assert.False(t, called, "expected prior-day overdue schedule not to run")
+	assert.True(t, s.schedules[0].LastTriggered.IsZero(), "expected LastTriggered to remain zero")
+}
+
+func TestOverdueCategoryRunCap(t *testing.T) {
+	now := time.Now()
+	var mu sync.Mutex
+	executed := []string{}
+	act := func(name string) func(context.Context) error {
+		return func(ctx context.Context) error {
+			mu.Lock()
+			executed = append(executed, name)
+			mu.Unlock()
+			return nil
+		}
+	}
+
+	s := NewScheduler()
+	for i := 0; i < maxCategoryRunsPerEvaluation+1; i++ {
+		name := "Schedule " + string(rune('A'+i))
+		s.AddSchedule(&DailySchedule{
+			Name:     name,
+			Category: "cap",
+			Trigger: Trigger{
+				Time: func() time.Time {
+					return time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, time.Local)
+				},
+			},
+			Action: act(name),
+		})
+	}
+
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, time.Local))
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Len(t, executed, maxCategoryRunsPerEvaluation)
+	assert.Equal(t, []string{"Schedule A", "Schedule B", "Schedule C", "Schedule D"}, executed)
+	assert.True(t, s.schedules[maxCategoryRunsPerEvaluation].LastTriggered.IsZero(), "expected capped schedule not to trigger")
 }
 
 // TestTimezoneTrigger ensures that a trigger time expressed in a non-UTC location
