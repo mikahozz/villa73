@@ -59,13 +59,15 @@ type Filter struct {
 
 type DailySchedule struct {
 	Name          string
-	Category      string // optional grouping; only last eligible schedule in same category runs per evaluation cycle
+	Category      string // optional grouping; due schedules in the same category run in insertion order
 	Trigger       Trigger
 	FilterLogic   AndOrType
 	Filters       []Filter
 	Action        func(context.Context) error
 	LastTriggered time.Time
 }
+
+const maxCategoryRunsPerEvaluation = 4
 
 type Scheduler struct {
 	schedules []*DailySchedule
@@ -128,102 +130,79 @@ func (s *Scheduler) run() {
 	}
 }
 
-// evaluate checks all schedules and executes matching ones
+// evaluate checks all schedules and executes due schedules in insertion order.
+// Category schedules are allowed to override each other within the same cycle,
+// but only if the trigger belongs to the current day and the per-cycle category
+// execution cap has not been reached.
 func (s *Scheduler) evaluate(now time.Time) {
 	s.mu.RLock()
 	schedules := make([]*DailySchedule, len(s.schedules))
 	copy(schedules, s.schedules)
 	s.mu.RUnlock()
 
-	// Track, per category, the latest trigger time that has already fired today.
-	triggeredMax := make(map[string]time.Time)
+	categoryRuns := make(map[string]int)
 	for _, sch := range schedules {
-		if sch.Category == "" || sch.LastTriggered.IsZero() || !hasTriggeredThisPeriod(sch, now) {
-			continue
-		}
 		t := sch.Trigger.Time()
-		if prev, ok := triggeredMax[sch.Category]; !ok || t.After(prev) {
-			triggeredMax[sch.Category] = t
-		}
-	}
-
-	// Determine candidate per category for this evaluation.
-	candidates := make(map[string]*DailySchedule)
-	candidateTime := make(map[string]time.Time)
-	eligible := make(map[*DailySchedule]bool)
-	for _, sch := range schedules {
-		// Basic eligibility (time reached & not triggered today)
-		if !s.shouldTrigger(sch, now) {
-			continue
-		}
-		if !s.filtersPass(sch, now) {
-			continue
-		}
-		t := sch.Trigger.Time()
-		cat := sch.Category
-		eligible[sch] = true
-		// If a schedule already fired today in this category with time >= t, suppress (we only allow later times).
-		if cat != "" {
-			if firedT, ok := triggeredMax[cat]; ok && (t.Before(firedT) || t.Equal(firedT)) {
-				eligible[sch] = false
-				continue
-			}
-			prevT, ok := candidateTime[cat]
-			if !ok || t.After(prevT) || t.Equal(prevT) { // tie -> later-added wins
-				candidates[cat] = sch
-				candidateTime[cat] = t
-			}
-		} else {
-			// No category: treat each as its own candidate under a unique key (use name)
-			candidates[sch.Name] = sch
-		}
-	}
-
-	for _, sch := range schedules {
-		catKey := sch.Category
-		if catKey == "" {
-			catKey = sch.Name
-		}
-		isWinner := candidates[catKey] == sch && eligible[sch]
-		if isWinner {
-			s.logScheduleTrigger(sch, now)
-			go func(sch *DailySchedule) {
-				start := s.clock.Now()
-				s.logActionStart(sch, start)
-				defer func() {
-					if r := recover(); r != nil {
-						s.logActionPanic(sch, r)
-					}
-				}()
-				if err := sch.Action(s.ctx); err != nil {
-					log.Error().Err(err).Str("event", "action_error").Str("schedule", sch.Name).Msg("action failed; will retry next cycle")
-				} else {
-					s.mu.Lock()
-					sch.LastTriggered = now
-					s.mu.Unlock()
-					s.logActionFinish(sch, start)
-				}
-			}(sch)
-			continue
-		}
-		// Derive skip reason
 		reason := "trigger_time_not_reached"
+
 		if hasTriggeredThisPeriod(sch, now) {
 			reason = "already_triggered_today"
-		} else if eligible[sch] { // eligible but not winner
-			reason = "superseded_by_later_schedule"
-		} else if s.shouldTrigger(sch, now) && sch.Category != "" {
-			// suppressed due to later already triggered
-			t := sch.Trigger.Time()
-			if firedT, ok := triggeredMax[sch.Category]; ok && (t.Before(firedT) || t.Equal(firedT)) {
-				reason = "earlier_than_triggered_later_schedule"
-			}
-		} else if s.shouldTrigger(sch, now) && !s.filtersPass(sch, now) {
-			reason = "filters_not_passed"
+			s.logScheduleSkip(sch, now, t, reason)
+			continue
 		}
-		triggerT := sch.Trigger.Time()
-		s.logScheduleSkip(sch, now, triggerT, reason)
+
+		if !sameDay(t, now) {
+			reason = "trigger_not_due_today"
+			s.logScheduleSkip(sch, now, t, reason)
+			continue
+		}
+
+		if !s.shouldTrigger(sch, now) {
+			s.logScheduleSkip(sch, now, t, reason)
+			continue
+		}
+
+		if !s.filtersPass(sch, now) {
+			reason = "filters_not_passed"
+			s.logScheduleSkip(sch, now, t, reason)
+			continue
+		}
+
+		if sch.Category != "" && categoryRuns[sch.Category] >= maxCategoryRunsPerEvaluation {
+			reason = "category_run_limit_reached"
+			s.logScheduleSkip(sch, now, t, reason)
+			continue
+		}
+
+		if sch.Category != "" {
+			categoryRuns[sch.Category]++
+		}
+
+		s.logScheduleTrigger(sch, now)
+		go func(sch *DailySchedule) {
+			start := s.clock.Now()
+			s.logActionStart(sch, start)
+			defer func() {
+				if r := recover(); r != nil {
+					s.logActionPanic(sch, r)
+				}
+			}()
+			if err := sch.Action(s.ctx); err != nil {
+				log.Error().Err(err).Str("event", "action_error").Str("schedule", sch.Name).Msg("action failed; will retry next cycle")
+			} else {
+				s.mu.Lock()
+				sch.LastTriggered = now
+				s.mu.Unlock()
+				s.logActionFinish(sch, start)
+			}
+		}(sch)
 	}
+}
+
+func sameDay(a, b time.Time) bool {
+	return a.Year() == b.Year() &&
+		a.Month() == b.Month() &&
+		a.Day() == b.Day()
 }
 
 // shouldTrigger checks if the trigger condition is met
