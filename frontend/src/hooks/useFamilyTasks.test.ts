@@ -14,6 +14,7 @@ describe("useFamilyTasks polling intervals", () => {
         note: "",
         labels: [],
         size: 1,
+        completed: false,
         createdAt: new Date().toISOString(),
       },
     ]);
