@@ -83,10 +83,11 @@ func TestSunsetSchedule(t *testing.T) {
 	t.Run("Should not execute second time same day but day after", func(t *testing.T) {
 		now := time.Now()
 		actionCalled = false
+		currentEvalTime := time.Date(now.Year(), now.Month(), now.Day(), 20, 0, 0, 0, time.Local)
 		scheduleTime := func() time.Time {
-			return time.Date(now.Year(), now.Month(), now.Day(), 20, 0, 0, 0, time.Local)
+			return time.Date(currentEvalTime.Year(), currentEvalTime.Month(), currentEvalTime.Day(), 20, 0, 0, 0, time.Local)
 		}
-		testTime := time.Date(now.Year(), now.Month(), now.Day(), 20, 0, 0, 0, time.Local)
+		testTime := currentEvalTime
 		scheduler := createSchedule(scheduleTime, dummyAction)
 		scheduler.evaluate(testTime)
 
@@ -103,6 +104,7 @@ func TestSunsetSchedule(t *testing.T) {
 		assert.False(t, actionCalled, "Action should NOT have been executed second time same day")
 
 		tomorrowTestTime := testTime.Add(24 * time.Hour)
+		currentEvalTime = tomorrowTestTime
 		scheduler.evaluate(tomorrowTestTime)
 
 		time.Sleep(100 * time.Millisecond)

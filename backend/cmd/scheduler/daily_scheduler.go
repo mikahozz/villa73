@@ -65,6 +65,7 @@ type DailySchedule struct {
 	Filters       []Filter
 	Action        func(context.Context) error
 	LastTriggered time.Time
+	running       bool
 }
 
 const maxCategoryRunsPerEvaluation = 4
@@ -168,6 +169,12 @@ func (s *Scheduler) evaluate(now time.Time) {
 			continue
 		}
 
+		if s.isRunning(sch) {
+			reason = "action_in_progress"
+			s.logScheduleSkip(sch, now, t, reason)
+			continue
+		}
+
 		if sch.Category != "" && categoryRuns[sch.Category] >= maxCategoryRunsPerEvaluation {
 			reason = "category_run_limit_reached"
 			s.logScheduleSkip(sch, now, t, reason)
@@ -179,24 +186,42 @@ func (s *Scheduler) evaluate(now time.Time) {
 		}
 
 		s.logScheduleTrigger(sch, now)
-		go func(sch *DailySchedule) {
-			start := s.clock.Now()
-			s.logActionStart(sch, start)
-			defer func() {
-				if r := recover(); r != nil {
-					s.logActionPanic(sch, r)
-				}
-			}()
-			if err := sch.Action(s.ctx); err != nil {
-				log.Error().Err(err).Str("event", "action_error").Str("schedule", sch.Name).Msg("action failed; will retry next cycle")
-			} else {
-				s.mu.Lock()
-				sch.LastTriggered = now
-				s.mu.Unlock()
-				s.logActionFinish(sch, start)
-			}
-		}(sch)
+		s.executeSchedule(sch, now)
 	}
+}
+
+func (s *Scheduler) isRunning(schedule *DailySchedule) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return schedule.running
+}
+
+func (s *Scheduler) executeSchedule(schedule *DailySchedule, now time.Time) {
+	start := s.clock.Now()
+
+	s.mu.Lock()
+	schedule.running = true
+	s.mu.Unlock()
+
+	s.logActionStart(schedule, start)
+	defer func() {
+		s.mu.Lock()
+		schedule.running = false
+		s.mu.Unlock()
+		if r := recover(); r != nil {
+			s.logActionPanic(schedule, r)
+		}
+	}()
+
+	if err := schedule.Action(s.ctx); err != nil {
+		log.Error().Err(err).Str("event", "action_error").Str("schedule", schedule.Name).Msg("action failed; will retry next cycle")
+		return
+	}
+
+	s.mu.Lock()
+	schedule.LastTriggered = now
+	s.mu.Unlock()
+	s.logActionFinish(schedule, start)
 }
 
 func sameDay(a, b time.Time) bool {
