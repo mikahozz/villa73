@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,8 +16,12 @@ import (
 )
 
 const (
-	serverName    = "villa73-raspberry-pi"
-	serverVersion = "0.2.0"
+	serverName               = "villa73-raspberry-pi"
+	serverVersion            = "0.2.0"
+	defaultComposeLogsTail   = 200
+	maxComposeLogsTail       = 1000
+	maxRemoteCommandOutput   = 512 * 1024
+	sshCommandTimeoutSeconds = 45
 )
 
 type server struct {
@@ -334,7 +337,9 @@ func (s *server) composeLogs(args composeLogsArgs) (toolResult, error) {
 
 	tail := args.Tail
 	if tail <= 0 {
-		tail = 200
+		tail = defaultComposeLogsTail
+	} else if tail > maxComposeLogsTail {
+		tail = maxComposeLogsTail
 	}
 
 	commandArgs, err := s.composeBaseArgs(projectDir, args.ComposeFile)
@@ -417,7 +422,6 @@ func (s *server) serviceRequest(args serviceRequestArgs) (toolResult, error) {
 		"curl",
 		"--silent",
 		"--show-error",
-		"--location",
 		"--request", method,
 		"--max-time", strconv.Itoa(timeout),
 		"--write-out", "\n\nHTTP_STATUS:%{http_code}\n",
@@ -500,7 +504,7 @@ func (s *server) runRemoteCommand(workDir string, commandArgs []string) (string,
 		script.WriteString(shellEscape(arg))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), sshCommandTimeoutSeconds*time.Second)
 	defer cancel()
 
 	sshArgs := []string{"-T"}
@@ -528,14 +532,14 @@ func (s *server) runRemoteCommand(workDir string, commandArgs []string) (string,
 	)
 
 	cmd := exec.CommandContext(ctx, "ssh", sshArgs...)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	stdout := newLimitedBuffer(maxRemoteCommandOutput)
+	stderr := newLimitedBuffer(maxRemoteCommandOutput)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return "", errors.New("ssh command timed out after 45 seconds")
+			return "", fmt.Errorf("ssh command timed out after %d seconds", sshCommandTimeoutSeconds)
 		}
 		errText := strings.TrimSpace(stderr.String())
 		if errText == "" {
@@ -546,9 +550,57 @@ func (s *server) runRemoteCommand(workDir string, commandArgs []string) (string,
 
 	text := strings.TrimSpace(stdout.String())
 	if text == "" {
+		if stdout.Truncated() {
+			return stdout.String(), nil
+		}
 		return "(no output)", nil
 	}
 	return text, nil
+}
+
+type limitedBuffer struct {
+	limit     int
+	buf       []byte
+	truncated bool
+}
+
+func newLimitedBuffer(limit int) limitedBuffer {
+	return limitedBuffer{limit: limit}
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	remaining := b.limit - len(b.buf)
+	if remaining > 0 {
+		if len(p) <= remaining {
+			b.buf = append(b.buf, p...)
+		} else {
+			b.buf = append(b.buf, p[:remaining]...)
+			b.truncated = true
+		}
+	} else {
+		b.truncated = true
+	}
+
+	if remaining > 0 && len(p) > remaining {
+		b.truncated = true
+	}
+	return len(p), nil
+}
+
+func (b *limitedBuffer) String() string {
+	text := string(b.buf)
+	if b.truncated {
+		return strings.TrimSpace(text) + "\n\n[output truncated]"
+	}
+	return text
+}
+
+func (b *limitedBuffer) Truncated() bool {
+	return b.truncated
 }
 
 func shellEscape(v string) string {
