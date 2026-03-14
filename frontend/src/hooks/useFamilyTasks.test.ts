@@ -30,4 +30,3 @@ describe("useFamilyTasks polling intervals", () => {
     );
   });
 });
-
