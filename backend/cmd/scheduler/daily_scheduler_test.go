@@ -246,6 +246,55 @@ func TestEarlierScheduleDoesNotRunAfterLaterTriggered(t *testing.T) {
 	assert.Equal(t, []string{"Early", "Late"}, executed)
 }
 
+// TestWinnerSuppressesLoserAfterWinnerHasTriggered is a regression for the bug
+// where the category loser would fire on the second evaluation cycle once the
+// winner had already run.
+//
+// Scenario: "ON at 06:45" (first) and "OFF at sunrise 07:00" (second) share a
+// category.  At 07:05 OFF wins (last in insertion order) and runs.  On the next
+// cycle at 07:06, OFF has already triggered today so it used to be skipped before
+// category-winner selection, leaving ON as the sole candidate — which then
+// incorrectly ran.  After the fix, OFF is still the category winner and suppresses
+// ON even after OFF has triggered.
+func TestWinnerSuppressesLoserAfterWinnerHasTriggered(t *testing.T) {
+	now := time.Now()
+	trigOn := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 6, 45, 0, 0, time.Local) }
+	trigOff := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 7, 0, 0, 0, time.Local) }
+
+	var mu sync.Mutex
+	executed := []string{}
+	act := func(name string) func(context.Context) error {
+		return func(ctx context.Context) error {
+			mu.Lock()
+			executed = append(executed, name)
+			mu.Unlock()
+			return nil
+		}
+	}
+
+	s := NewScheduler()
+	s.AddSchedule(&DailySchedule{Name: "ON at 06:45", Category: "morning_lights", Trigger: Trigger{Time: trigOn}, Action: act("ON")})
+	s.AddSchedule(&DailySchedule{Name: "OFF at sunrise", Category: "morning_lights", Trigger: Trigger{Time: trigOff}, Action: act("OFF")})
+
+	// First cycle: both are due; OFF wins (last in insertion order) and runs.
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 7, 5, 0, 0, time.Local))
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, []string{"OFF"}, executed, "first cycle: only OFF (winner) should run")
+	assert.True(t, s.schedules[0].LastTriggered.IsZero(), "ON LastTriggered must remain unset — it was suppressed")
+	assert.False(t, s.schedules[1].LastTriggered.IsZero(), "OFF LastTriggered must be set")
+
+	// Second cycle: OFF is still the winner; it has already triggered so nothing runs.
+	// ON must NOT run even though its own LastTriggered is still zero.
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 7, 6, 0, 0, time.Local))
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, []string{"OFF"}, executed, "second cycle: ON must not run — OFF is still the category winner")
+
+	// Third cycle: same result; continues to stay suppressed for the rest of the day.
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, time.Local))
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, []string{"OFF"}, executed, "third cycle: still suppressed for the rest of the day")
+}
+
 func TestSunriseBefore645ExecutesInInsertionOrder(t *testing.T) {
 	now := time.Now()
 	trigMorningOn := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 6, 45, 0, 0, time.Local) }

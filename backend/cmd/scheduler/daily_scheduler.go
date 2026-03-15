@@ -5,20 +5,28 @@
 // Schedules are registered via AddSchedule and the scheduler loop fires every
 // minute, calling evaluate(now) on each tick.
 //
-// evaluate(now) inspects every registered schedule in insertion order and skips
-// any that fail one of the following gates:
+// evaluate(now) inspects every registered schedule in insertion order.
+// Uncategorized schedules are skipped when any of the following gates fail:
 //
-//  1. Already triggered today   (LastTriggered is on the same calendar day)
-//  2. Trigger time is not today (sameDay check)
-//  3. Trigger time not yet reached (now < trigger instant)
-//  4. Filters do not pass
+//  1. Trigger time is not today (sameDay check)
+//  2. Trigger time not yet reached (now < trigger instant)
+//  3. Filters do not pass
+//  4. Already triggered today   (LastTriggered is on the same calendar day)
 //  5. Action is already running
 //
-// Schedules that pass all gates are then queued for execution:
-//   - Category == "":  queued directly, executed in insertion order.
-//   - Category != "":  within each category only the *last* triggerable
-//     schedule in insertion order is executed; earlier candidates in the
-//     same category are silently suppressed.
+// Categorized schedules go through a two-phase process:
+//
+//	Phase 1 – candidate collection (gates 1-3 only, no execution guards):
+//	Every schedule whose trigger time has been reached today and whose filters
+//	pass is considered a candidate, even if it has already triggered today.
+//	Within each category the *last* such candidate in insertion order is the
+//	winner.  Applying gates 4-5 is intentionally deferred so that an
+//	already-triggered winner keeps suppressing earlier (lower-priority)
+//	candidates on subsequent evaluation cycles.
+//
+//	Phase 2 – winner execution (gates 4-5):
+//	The category winner is queued for execution only when it has not already
+//	triggered today and is not currently running.
 //
 // The "last triggerable wins" rule makes it easy to express override logic.
 // Example: "morning lights ON at 06:45" followed by "morning lights OFF at
@@ -187,10 +195,6 @@ func (s *Scheduler) evaluate(now time.Time) {
 	for _, sch := range schedules {
 		triggerTime := sch.Trigger.Time()
 
-		if hasTriggeredToday(sch, now) {
-			s.logScheduleSkip(sch, now, triggerTime, "already_triggered_today")
-			continue
-		}
 		if !sameDay(triggerTime, now) {
 			s.logScheduleSkip(sch, now, triggerTime, "trigger_not_due_today")
 			continue
@@ -203,26 +207,46 @@ func (s *Scheduler) evaluate(now time.Time) {
 			s.logScheduleSkip(sch, now, triggerTime, "filters_not_passed")
 			continue
 		}
-		if s.isRunning(sch) {
-			s.logScheduleSkip(sch, now, triggerTime, "action_in_progress")
-			continue
-		}
 
 		if sch.Category == "" {
+			// For uncategorized schedules apply execution guards immediately.
+			if hasTriggeredToday(sch, now) {
+				s.logScheduleSkip(sch, now, triggerTime, "already_triggered_today")
+				continue
+			}
+			if s.isRunning(sch) {
+				s.logScheduleSkip(sch, now, triggerTime, "action_in_progress")
+				continue
+			}
 			queue = append(queue, sch)
 			continue
 		}
 
-		// Within a category, each later triggerable candidate replaces the earlier one.
+		// For categorized schedules: track all time-eligible candidates regardless of
+		// whether they have already triggered today.  Winner selection must consider
+		// every schedule that has reached its trigger time so that an already-triggered
+		// winner continues to suppress earlier (lower-priority) candidates on subsequent
+		// evaluation cycles.  Execution guards are applied to the winner only, below.
 		if _, seen := categoryCandidates[sch.Category]; !seen {
 			categoryOrder = append(categoryOrder, sch.Category)
 		}
 		categoryCandidates[sch.Category] = sch
 	}
 
-	// Append the winning candidate for each category in first-seen order.
+	// For each category, queue the winning candidate only when it has not already
+	// run today and is not currently executing.
 	for _, cat := range categoryOrder {
-		queue = append(queue, categoryCandidates[cat])
+		sch := categoryCandidates[cat]
+		triggerTime := sch.Trigger.Time()
+		if hasTriggeredToday(sch, now) {
+			s.logScheduleSkip(sch, now, triggerTime, "already_triggered_today")
+			continue
+		}
+		if s.isRunning(sch) {
+			s.logScheduleSkip(sch, now, triggerTime, "action_in_progress")
+			continue
+		}
+		queue = append(queue, sch)
 	}
 
 	for _, sch := range queue {
