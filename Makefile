@@ -1,7 +1,8 @@
 .PHONY: \
 	compose-config compose-ps compose-up compose-up-web compose-down compose-logs \
 	check-api-proxy check-api-direct check-legacy-cabin check-legacy-electricity check-legacy-indoor \
-	check-family-tasks check-all web-build-arm64 run-pi-mcp
+	check-family-tasks check-all web-build-arm64 run-pi-mcp \
+	test-backend test-scheduler
 
 COMPOSE := docker compose
 WEB_BASE := http://localhost:3000
@@ -50,6 +51,13 @@ check-family-tasks:
 	head -c 400 /tmp/villa73_family_tasks.json; echo
 
 check-all: compose-ps check-api-proxy check-api-direct check-family-tasks
+
+# Backend tests
+test-backend:
+	$(MAKE) -C backend test
+
+test-scheduler:
+	$(MAKE) -C backend test-scheduler
 
 # Build web image for Raspberry Pi parity (linux/arm64) without deploying.
 web-build-arm64:

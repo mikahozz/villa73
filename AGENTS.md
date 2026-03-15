@@ -33,3 +33,11 @@
 
 - Legacy bridge checks may return `502` when legacy services are offline; this is expected and should not block nginx startup.
 - Add new recurring verification commands to the root `Makefile` and then use them via `make`.
+- `CGO_ENABLED=0` is baked into all `backend/Makefile` test targets because this project has no C dependencies. It also avoids a dyld crash on macOS 15+ with Go 1.22. Never set it manually in ad-hoc commands; use the Make targets instead.
+
+## Backend tests
+
+Always use these targets from the repo root. Never run `go test` directly.
+
+- `make test-backend` — full backend test suite
+- `make test-scheduler` — scheduler package only (verbose)
