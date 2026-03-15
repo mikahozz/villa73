@@ -52,7 +52,7 @@ func TestMorningLightsAfterSunriseEndsOff(t *testing.T) {
 	if finalState != "off" {
 		t.Fatalf("expected daytime lights to end OFF, got %q; executed=%v", finalState, executed)
 	}
-	if len(executed) != 2 || executed[0] != "ON" || executed[1] != "OFF" {
-		t.Fatalf("expected deterministic execution order [ON OFF], got %v", executed)
+	if len(executed) != 1 || executed[0] != "OFF" {
+		t.Fatalf("expected only the last triggerable category candidate [OFF], got %v", executed)
 	}
 }

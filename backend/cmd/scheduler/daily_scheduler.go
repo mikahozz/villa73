@@ -68,8 +68,6 @@ type DailySchedule struct {
 	running       bool
 }
 
-const maxCategoryRunsPerEvaluation = 4
-
 type Scheduler struct {
 	schedules []*DailySchedule
 	mu        sync.RWMutex
@@ -131,17 +129,34 @@ func (s *Scheduler) run() {
 	}
 }
 
-// evaluate checks all schedules and executes due schedules in insertion order.
-// Category schedules are allowed to override each other within the same cycle,
-// but only if the trigger belongs to the current day and the per-cycle category
-// execution cap has not been reached.
+// evaluate checks all schedules for the current cycle and executes triggerable actions.
+//
+// Evaluation and execution model:
+//  1. Schedules are evaluated in insertion order using existing criteria:
+//     - not already triggered today
+//     - trigger belongs to current day
+//     - trigger time reached
+//     - filters pass
+//     - action is not already running
+//  2. For schedules with Category == "": each triggerable schedule is queued directly.
+//  3. For schedules with a non-empty Category: only one schedule can execute per
+//     category per evaluation cycle. As schedules are scanned in insertion order,
+//     each triggerable schedule in that category replaces the previous candidate.
+//     The final candidate (latest triggerable by insertion order) is executed.
+//
+// This guarantees deterministic "last triggerable wins" behavior within a category
+// while preserving all existing trigger/filter checks.
 func (s *Scheduler) evaluate(now time.Time) {
 	s.mu.RLock()
 	schedules := make([]*DailySchedule, len(s.schedules))
 	copy(schedules, s.schedules)
 	s.mu.RUnlock()
 
-	categoryRuns := make(map[string]int)
+	categoryCandidates := make(map[string]*DailySchedule)
+	categoryOrder := make([]string, 0)
+	executionQueue := make([]*DailySchedule, 0)
+	seenCategories := make(map[string]bool)
+
 	for _, sch := range schedules {
 		t := sch.Trigger.Time()
 		reason := "trigger_time_not_reached"
@@ -175,16 +190,26 @@ func (s *Scheduler) evaluate(now time.Time) {
 			continue
 		}
 
-		if sch.Category != "" && categoryRuns[sch.Category] >= maxCategoryRunsPerEvaluation {
-			reason = "category_run_limit_reached"
-			s.logScheduleSkip(sch, now, t, reason)
+		if sch.Category == "" {
+			executionQueue = append(executionQueue, sch)
 			continue
 		}
 
-		if sch.Category != "" {
-			categoryRuns[sch.Category]++
+		if !seenCategories[sch.Category] {
+			seenCategories[sch.Category] = true
+			categoryOrder = append(categoryOrder, sch.Category)
 		}
+		categoryCandidates[sch.Category] = sch
+	}
 
+	for _, category := range categoryOrder {
+		candidate := categoryCandidates[category]
+		if candidate != nil {
+			executionQueue = append(executionQueue, candidate)
+		}
+	}
+
+	for _, sch := range executionQueue {
 		s.logScheduleTrigger(sch, now)
 		s.executeSchedule(sch, now)
 	}

@@ -157,9 +157,37 @@ func TestCategorySupersede(t *testing.T) {
 	scheduler.AddSchedule(&DailySchedule{Name: "Second", Category: "group1", Trigger: Trigger{Time: trig}, Action: makeAction("Second")})
 	scheduler.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 10, 5, 0, 0, time.Local))
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, []string{"First", "Second"}, executed)
-	assert.False(t, scheduler.schedules[0].LastTriggered.IsZero(), "expected first schedule LastTriggered to be set")
+	assert.Equal(t, []string{"Second"}, executed)
+	assert.True(t, scheduler.schedules[0].LastTriggered.IsZero(), "expected first schedule LastTriggered to remain unset")
 	assert.False(t, scheduler.schedules[1].LastTriggered.IsZero(), "expected second schedule LastTriggered to be set")
+}
+
+func TestCategoryKeepsEarlierCandidateIfLaterNotTriggerable(t *testing.T) {
+	now := time.Now()
+	trigDue := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 10, 0, 0, 0, time.Local) }
+	trigFuture := func() time.Time { return time.Date(now.Year(), now.Month(), now.Day(), 20, 0, 0, 0, time.Local) }
+
+	var mu sync.Mutex
+	executed := []string{}
+	act := func(name string) func(context.Context) error {
+		return func(ctx context.Context) error {
+			mu.Lock()
+			executed = append(executed, name)
+			mu.Unlock()
+			return nil
+		}
+	}
+
+	s := NewScheduler()
+	s.AddSchedule(&DailySchedule{Name: "Due", Category: "cat1", Trigger: Trigger{Time: trigDue}, Action: act("Due")})
+	s.AddSchedule(&DailySchedule{Name: "Future", Category: "cat1", Trigger: Trigger{Time: trigFuture}, Action: act("Future")})
+
+	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 11, 0, 0, 0, time.Local))
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Equal(t, []string{"Due"}, executed)
+	assert.False(t, s.schedules[0].LastTriggered.IsZero(), "expected due schedule LastTriggered to be set")
+	assert.True(t, s.schedules[1].LastTriggered.IsZero(), "expected future schedule LastTriggered to remain unset")
 }
 
 func TestCategoryInsertionOrderOverridesTriggerTime(t *testing.T) {
@@ -184,8 +212,8 @@ func TestCategoryInsertionOrderOverridesTriggerTime(t *testing.T) {
 	// Evaluate after both times passed
 	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, time.Local))
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, []string{"Late", "Early"}, executed)
-	assert.False(t, s.schedules[0].LastTriggered.IsZero(), "expected late schedule LastTriggered to be set")
+	assert.Equal(t, []string{"Early"}, executed)
+	assert.True(t, s.schedules[0].LastTriggered.IsZero(), "expected late schedule LastTriggered to remain unset")
 	assert.False(t, s.schedules[1].LastTriggered.IsZero(), "expected early schedule LastTriggered to be set")
 }
 
@@ -240,7 +268,9 @@ func TestSunriseBefore645ExecutesInInsertionOrder(t *testing.T) {
 	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 7, 0, 0, 0, time.Local))
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(t, []string{"ON", "OFF"}, executed)
+	assert.Equal(t, []string{"OFF"}, executed)
+	assert.True(t, s.schedules[0].LastTriggered.IsZero(), "expected ON schedule LastTriggered to remain unset")
+	assert.False(t, s.schedules[1].LastTriggered.IsZero(), "expected OFF schedule LastTriggered to be set")
 }
 
 func TestOverdueSchedulesRunOnlyForCurrentDay(t *testing.T) {
@@ -271,7 +301,7 @@ func TestOverdueSchedulesRunOnlyForCurrentDay(t *testing.T) {
 	assert.True(t, s.schedules[0].LastTriggered.IsZero(), "expected LastTriggered to remain zero")
 }
 
-func TestOverdueCategoryRunCap(t *testing.T) {
+func TestCategoryRunsOnlyLastTriggerableCandidatePerEvaluation(t *testing.T) {
 	now := time.Now()
 	var mu sync.Mutex
 	executed := []string{}
@@ -285,7 +315,7 @@ func TestOverdueCategoryRunCap(t *testing.T) {
 	}
 
 	s := NewScheduler()
-	for i := 0; i < maxCategoryRunsPerEvaluation+1; i++ {
+	for i := 0; i < 5; i++ {
 		name := "Schedule " + string(rune('A'+i))
 		s.AddSchedule(&DailySchedule{
 			Name:     name,
@@ -302,9 +332,11 @@ func TestOverdueCategoryRunCap(t *testing.T) {
 	s.evaluate(time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, time.Local))
 	time.Sleep(100 * time.Millisecond)
 
-	assert.Len(t, executed, maxCategoryRunsPerEvaluation)
-	assert.Equal(t, []string{"Schedule A", "Schedule B", "Schedule C", "Schedule D"}, executed)
-	assert.True(t, s.schedules[maxCategoryRunsPerEvaluation].LastTriggered.IsZero(), "expected capped schedule not to trigger")
+	assert.Equal(t, []string{"Schedule E"}, executed)
+	for i := 0; i < 4; i++ {
+		assert.True(t, s.schedules[i].LastTriggered.IsZero(), "expected non-winning candidate LastTriggered to remain unset")
+	}
+	assert.False(t, s.schedules[4].LastTriggered.IsZero(), "expected last triggerable candidate to execute")
 }
 
 // TestTimezoneTrigger ensures that a trigger time expressed in a non-UTC location
