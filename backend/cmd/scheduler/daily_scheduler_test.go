@@ -273,6 +273,62 @@ func TestSunriseBefore645ExecutesInInsertionOrder(t *testing.T) {
 	assert.False(t, s.schedules[1].LastTriggered.IsZero(), "expected OFF schedule LastTriggered to be set")
 }
 
+// TestSunriseAfter645EndsOff is a regression for the scenario where sunrise
+// falls AFTER 06:45, making both schedules due in the same cycle.  The OFF
+// action (added last) must win even when the ON action has an artificial delay —
+// confirming that category winner selection is resolved before any action starts.
+func TestSunriseAfter645EndsOff(t *testing.T) {
+	now := time.Date(2026, 3, 14, 7, 0, 0, 0, time.Local)
+	trigMorningOn := func() time.Time {
+		return time.Date(now.Year(), now.Month(), now.Day(), 6, 45, 0, 0, time.Local)
+	}
+	trigSunriseOff := func() time.Time {
+		// Sunrise at 06:41 — before 06:45 in wall-clock terms but added later,
+		// so it is the last triggerable candidate and must win.
+		return time.Date(now.Year(), now.Month(), now.Day(), 6, 41, 43, 0, time.Local)
+	}
+
+	var mu sync.Mutex
+	finalState := "unknown"
+	executed := []string{}
+
+	act := func(name, state string, delay time.Duration) func(context.Context) error {
+		return func(ctx context.Context) error {
+			time.Sleep(delay)
+			mu.Lock()
+			executed = append(executed, name)
+			finalState = state
+			mu.Unlock()
+			return nil
+		}
+	}
+
+	s := NewScheduler()
+	s.AddSchedule(&DailySchedule{
+		Name:     "Morning lights ON at 6:45",
+		Category: "night_lights",
+		Trigger:  Trigger{Time: trigMorningOn},
+		Action:   act("ON", "on", 40*time.Millisecond), // delay must not affect selection
+	})
+	s.AddSchedule(&DailySchedule{
+		Name:     "Morning lights OFF at sunrise",
+		Category: "night_lights",
+		Trigger:  Trigger{Time: trigSunriseOff},
+		Action:   act("OFF", "off", 0),
+	})
+
+	s.evaluate(now)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if finalState != "off" {
+		t.Fatalf("expected daytime lights to end OFF, got %q; executed=%v", finalState, executed)
+	}
+	if len(executed) != 1 || executed[0] != "OFF" {
+		t.Fatalf("expected only the last triggerable category candidate [OFF], got %v", executed)
+	}
+}
+
 func TestOverdueSchedulesRunOnlyForCurrentDay(t *testing.T) {
 	now := time.Now()
 	var called bool

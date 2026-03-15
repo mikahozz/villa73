@@ -1,3 +1,35 @@
+// Package main implements a time-based daily action scheduler.
+//
+// # Design overview
+//
+// Schedules are registered via AddSchedule and the scheduler loop fires every
+// minute, calling evaluate(now) on each tick.
+//
+// evaluate(now) inspects every registered schedule in insertion order and skips
+// any that fail one of the following gates:
+//
+//  1. Already triggered today   (LastTriggered is on the same calendar day)
+//  2. Trigger time is not today (sameDay check)
+//  3. Trigger time not yet reached (now < trigger instant)
+//  4. Filters do not pass
+//  5. Action is already running
+//
+// Schedules that pass all gates are then queued for execution:
+//   - Category == "":  queued directly, executed in insertion order.
+//   - Category != "":  within each category only the *last* triggerable
+//     schedule in insertion order is executed; earlier candidates in the
+//     same category are silently suppressed.
+//
+// The "last triggerable wins" rule makes it easy to express override logic.
+// Example: "morning lights ON at 06:45" followed by "morning lights OFF at
+// sunrise" share a category.  When sunrise is before 06:45 the OFF schedule
+// is added later in the list, so it wins and lights are never turned on.
+// When sunrise is after 06:45 the ON schedule wins instead.
+//
+// Actions are executed synchronously within evaluate; the scheduler loop
+// therefore blocks until all actions for a given tick complete.
+// Action errors prevent LastTriggered from being stamped, causing the action
+// to be retried on the next evaluation cycle (once per minute).
 package main
 
 import (
@@ -9,65 +41,73 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Clock interface for dependency injection in tests
+// --- Clock abstraction ---
+
+// Clock abstracts time operations so tests can inject a fake clock.
 type Clock interface {
 	Now() time.Time
 	After(d time.Duration) <-chan time.Time
 }
 
-// RealClock uses actual system time
+// RealClock delegates to the standard library.
 type RealClock struct{}
 
-func (rc *RealClock) Now() time.Time {
-	return time.Now()
-}
+func (rc *RealClock) Now() time.Time                         { return time.Now() }
+func (rc *RealClock) After(d time.Duration) <-chan time.Time { return time.After(d) }
 
-func (rc *RealClock) After(d time.Duration) <-chan time.Time {
-	return time.After(d)
-}
+// --- Schedule definition types ---
 
 type FilterType string
-
-const (
-	FilterDate FilterType = "date"
-)
-
+type Comparator string
 type AndOrType string
 
 const (
+	FilterDate FilterType = "date"
+
+	LessThan    Comparator = "less_than"
+	GreaterThan Comparator = "greater_than"
+	Equal       Comparator = "equal"
+
 	AND AndOrType = "and"
 	OR  AndOrType = "or"
 )
 
+// Trigger holds a function that returns the trigger instant for the current day.
+// The function is called on every evaluation cycle, which lets dynamic triggers
+// (e.g. today's sunrise time) stay up to date.
 type Trigger struct {
 	Time func() time.Time
 }
 
-type Comparator string
-
-const (
-	LessThan    Comparator = "less_than"
-	GreaterThan Comparator = "greater_than"
-	Equal       Comparator = "equal"
-)
-
+// Filter constrains when a schedule is eligible to run.
 type Filter struct {
 	Type       FilterType
 	Date       time.Time
 	Comparator Comparator
 }
 
+// DailySchedule describes a single recurring action and its trigger conditions.
+//
+// Category groups related schedules so that only the last triggerable one
+// in insertion order runs per evaluation cycle (see package-level doc).
+// Leave Category empty if a schedule should always run independently.
+//
+// LastTriggered is stamped only on successful completion; a failing action
+// leaves it zero so the scheduler retries on the next cycle.
 type DailySchedule struct {
 	Name          string
-	Category      string // optional grouping; due schedules in the same category run in insertion order
+	Category      string
 	Trigger       Trigger
 	FilterLogic   AndOrType
 	Filters       []Filter
 	Action        func(context.Context) error
 	LastTriggered time.Time
-	running       bool
+	running       bool // guarded by Scheduler.mu
 }
 
+// --- Scheduler lifecycle ---
+
+// Scheduler holds the registered schedules and drives the evaluation loop.
 type Scheduler struct {
 	schedules []*DailySchedule
 	mu        sync.RWMutex
@@ -77,12 +117,12 @@ type Scheduler struct {
 	clock     Clock
 }
 
-// NewScheduler creates a new scheduler instance with real clock
+// NewScheduler creates a Scheduler backed by the real system clock.
 func NewScheduler() *Scheduler {
 	return NewSchedulerWithClock(&RealClock{})
 }
 
-// NewSchedulerWithClock creates a new scheduler instance with custom clock
+// NewSchedulerWithClock creates a Scheduler with a custom clock (useful in tests).
 func NewSchedulerWithClock(clock Clock) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
@@ -93,7 +133,7 @@ func NewSchedulerWithClock(clock Clock) *Scheduler {
 	}
 }
 
-// AddSchedule adds a schedule to the scheduler
+// AddSchedule registers a schedule. Schedules are evaluated in insertion order.
 func (s *Scheduler) AddSchedule(schedule *DailySchedule) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -101,23 +141,22 @@ func (s *Scheduler) AddSchedule(schedule *DailySchedule) {
 	s.logScheduleAdded(schedule)
 }
 
-// Start begins running the scheduler
+// Start launches the scheduler loop in a background goroutine.
 func (s *Scheduler) Start() {
 	s.wg.Add(1)
 	s.logStart()
 	go s.run()
 }
 
-// Stop gracefully stops the scheduler
+// Stop signals the scheduler to stop and waits for the loop to exit.
 func (s *Scheduler) Stop() {
 	s.cancel()
 	s.wg.Wait()
 }
 
-// run is the main scheduler loop
+// run is the main scheduler loop: evaluate once per minute.
 func (s *Scheduler) run() {
 	defer s.wg.Done()
-
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -129,98 +168,93 @@ func (s *Scheduler) run() {
 	}
 }
 
-// evaluate checks all schedules for the current cycle and executes triggerable actions.
-//
-// Evaluation and execution model:
-//  1. Schedules are evaluated in insertion order using existing criteria:
-//     - not already triggered today
-//     - trigger belongs to current day
-//     - trigger time reached
-//     - filters pass
-//     - action is not already running
-//  2. For schedules with Category == "": each triggerable schedule is queued directly.
-//  3. For schedules with a non-empty Category: only one schedule can execute per
-//     category per evaluation cycle. As schedules are scanned in insertion order,
-//     each triggerable schedule in that category replaces the previous candidate.
-//     The final candidate (latest triggerable by insertion order) is executed.
-//
-// This guarantees deterministic "last triggerable wins" behavior within a category
-// while preserving all existing trigger/filter checks.
+// --- Evaluation ---
+
+// evaluate checks every registered schedule against now and executes the ones
+// that are due.  See the package-level doc for the full gate and category logic.
 func (s *Scheduler) evaluate(now time.Time) {
 	s.mu.RLock()
 	schedules := make([]*DailySchedule, len(s.schedules))
 	copy(schedules, s.schedules)
 	s.mu.RUnlock()
 
+	// categoryCandidates holds the latest triggerable schedule per category.
+	// categoryOrder preserves the first-seen insertion order for deterministic execution.
 	categoryCandidates := make(map[string]*DailySchedule)
 	categoryOrder := make([]string, 0)
-	executionQueue := make([]*DailySchedule, 0)
-	seenCategories := make(map[string]bool)
+	queue := make([]*DailySchedule, 0)
 
 	for _, sch := range schedules {
-		t := sch.Trigger.Time()
-		reason := "trigger_time_not_reached"
+		triggerTime := sch.Trigger.Time()
 
-		if hasTriggeredThisPeriod(sch, now) {
-			reason = "already_triggered_today"
-			s.logScheduleSkip(sch, now, t, reason)
+		if hasTriggeredToday(sch, now) {
+			s.logScheduleSkip(sch, now, triggerTime, "already_triggered_today")
 			continue
 		}
-
-		if !sameDay(t, now) {
-			reason = "trigger_not_due_today"
-			s.logScheduleSkip(sch, now, t, reason)
+		if !sameDay(triggerTime, now) {
+			s.logScheduleSkip(sch, now, triggerTime, "trigger_not_due_today")
 			continue
 		}
-
-		if !s.shouldTrigger(sch, now) {
-			s.logScheduleSkip(sch, now, t, reason)
+		if now.Before(triggerTime) {
+			s.logScheduleSkip(sch, now, triggerTime, "trigger_time_not_reached")
 			continue
 		}
-
 		if !s.filtersPass(sch, now) {
-			reason = "filters_not_passed"
-			s.logScheduleSkip(sch, now, t, reason)
+			s.logScheduleSkip(sch, now, triggerTime, "filters_not_passed")
 			continue
 		}
-
 		if s.isRunning(sch) {
-			reason = "action_in_progress"
-			s.logScheduleSkip(sch, now, t, reason)
+			s.logScheduleSkip(sch, now, triggerTime, "action_in_progress")
 			continue
 		}
 
 		if sch.Category == "" {
-			executionQueue = append(executionQueue, sch)
+			queue = append(queue, sch)
 			continue
 		}
 
-		if !seenCategories[sch.Category] {
-			seenCategories[sch.Category] = true
+		// Within a category, each later triggerable candidate replaces the earlier one.
+		if _, seen := categoryCandidates[sch.Category]; !seen {
 			categoryOrder = append(categoryOrder, sch.Category)
 		}
 		categoryCandidates[sch.Category] = sch
 	}
 
-	for _, category := range categoryOrder {
-		candidate := categoryCandidates[category]
-		if candidate != nil {
-			executionQueue = append(executionQueue, candidate)
-		}
+	// Append the winning candidate for each category in first-seen order.
+	for _, cat := range categoryOrder {
+		queue = append(queue, categoryCandidates[cat])
 	}
 
-	for _, sch := range executionQueue {
+	for _, sch := range queue {
 		s.logScheduleTrigger(sch, now)
 		s.executeSchedule(sch, now)
 	}
 }
 
+// hasTriggeredToday reports whether the schedule has already run on the same
+// calendar day as now (using the schedule's own timezone if any).
+func hasTriggeredToday(schedule *DailySchedule, now time.Time) bool {
+	lt := schedule.LastTriggered
+	return !lt.IsZero() &&
+		lt.Year() == now.Year() &&
+		lt.Month() == now.Month() &&
+		lt.Day() == now.Day()
+}
+
+// sameDay reports whether two instants fall on the same calendar day.
+func sameDay(a, b time.Time) bool {
+	return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
+}
+
+// isRunning reports whether the schedule's action goroutine is still executing.
 func (s *Scheduler) isRunning(schedule *DailySchedule) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return schedule.running
 }
 
+// executeSchedule runs the action synchronously.
+// LastTriggered is stamped only on success; a failed action is retried next cycle.
 func (s *Scheduler) executeSchedule(schedule *DailySchedule, now time.Time) {
 	start := s.clock.Now()
 
@@ -239,7 +273,8 @@ func (s *Scheduler) executeSchedule(schedule *DailySchedule, now time.Time) {
 	}()
 
 	if err := schedule.Action(s.ctx); err != nil {
-		log.Error().Err(err).Str("event", "action_error").Str("schedule", schedule.Name).Msg("action failed; will retry next cycle")
+		log.Error().Err(err).Str("event", "action_error").Str("schedule", schedule.Name).
+			Msg("action failed; will retry next cycle")
 		return
 	}
 
@@ -249,57 +284,31 @@ func (s *Scheduler) executeSchedule(schedule *DailySchedule, now time.Time) {
 	s.logActionFinish(schedule, start)
 }
 
-func sameDay(a, b time.Time) bool {
-	return a.Year() == b.Year() &&
-		a.Month() == b.Month() &&
-		a.Day() == b.Day()
-}
+// --- Filter evaluation ---
 
-// shouldTrigger checks if the trigger condition is met
-func (s *Scheduler) shouldTrigger(schedule *DailySchedule, now time.Time) bool {
-	if hasTriggeredThisPeriod(schedule, now) {
-		return false
-	}
-	t := schedule.Trigger.Time()
-	// Compare absolute instants instead of naive hour/minute fields which break across timezones.
-	// Trigger when now >= t.
-	return !now.Before(t)
-}
-
-func hasTriggeredThisPeriod(schedule *DailySchedule, now time.Time) bool {
-	if schedule.LastTriggered.IsZero() {
-		return false
-	}
-	return schedule.LastTriggered.Year() == now.Year() &&
-		schedule.LastTriggered.Month() == now.Month() &&
-		schedule.LastTriggered.Day() == now.Day()
-}
-
-// filtersPass checks if all filters pass according to logic type
+// filtersPass returns true when the schedule's filters allow execution at now.
+// An empty filter list is always a pass.
 func (s *Scheduler) filtersPass(schedule *DailySchedule, now time.Time) bool {
 	if len(schedule.Filters) == 0 {
 		return true
 	}
-
 	if schedule.FilterLogic == OR {
-		for _, filter := range schedule.Filters {
-			if s.filterPass(filter, now) {
+		for _, f := range schedule.Filters {
+			if s.filterPass(f, now) {
 				return true
 			}
 		}
 		return false
 	}
-
-	// Default to AND logic
-	for _, filter := range schedule.Filters {
-		if !s.filterPass(filter, now) {
+	// Default: AND — all filters must pass.
+	for _, f := range schedule.Filters {
+		if !s.filterPass(f, now) {
 			return false
 		}
 	}
 	return true
 }
 
-// filterPass checks if a single filter passes
 func (s *Scheduler) filterPass(filter Filter, now time.Time) bool {
 	switch filter.Type {
 	case FilterDate:
@@ -319,10 +328,12 @@ func (s *Scheduler) filterPass(filter Filter, now time.Time) bool {
 	return true
 }
 
-// --- Logging helpers (centralized formatting) ---
+// --- Logging helpers ---
+
 func (s *Scheduler) logScheduleAdded(schedule *DailySchedule) {
-	trigInfo := schedule.Trigger.Time().Format(time.RFC3339)
-	evt := log.Info().Str("event", "schedule_added").Str("name", schedule.Name).Str("trigger_time", trigInfo).Int("filters", len(schedule.Filters))
+	evt := log.Info().Str("event", "schedule_added").Str("name", schedule.Name).
+		Str("trigger_time", schedule.Trigger.Time().Format(time.RFC3339)).
+		Int("filters", len(schedule.Filters))
 	if schedule.Category != "" {
 		evt = evt.Str("category", schedule.Category)
 	}
@@ -331,11 +342,11 @@ func (s *Scheduler) logScheduleAdded(schedule *DailySchedule) {
 
 func (s *Scheduler) logStart() {
 	s.mu.RLock()
-	cnt := len(s.schedules)
-	names := make([]string, 0, cnt)
+	names := make([]string, 0, len(s.schedules))
 	for _, sch := range s.schedules {
 		names = append(names, sch.Name)
 	}
+	cnt := len(s.schedules)
 	s.mu.RUnlock()
 	log.Info().Str("event", "scheduler_start").Int("schedule_count", cnt).Strs("schedules", names).Msg("scheduler started")
 }
@@ -353,7 +364,9 @@ func (s *Scheduler) logScheduleTrigger(schedule *DailySchedule, now time.Time) {
 }
 
 func (s *Scheduler) logScheduleSkip(schedule *DailySchedule, now, triggerT time.Time, reason string) {
-	evt := log.Debug().Str("event", "schedule_skip").Str("name", schedule.Name).Str("reason", reason).Time("now", now).Time("trigger_time", triggerT).Time("last_triggered", schedule.LastTriggered)
+	evt := log.Debug().Str("event", "schedule_skip").Str("name", schedule.Name).
+		Str("reason", reason).Time("now", now).Time("trigger_time", triggerT).
+		Time("last_triggered", schedule.LastTriggered)
 	if schedule.Category != "" {
 		evt = evt.Str("category", schedule.Category)
 	}
@@ -365,10 +378,11 @@ func (s *Scheduler) logActionStart(schedule *DailySchedule, start time.Time) {
 }
 
 func (s *Scheduler) logActionFinish(schedule *DailySchedule, start time.Time) {
-	dur := time.Since(start)
-	log.Info().Str("event", "action_finish").Str("schedule", schedule.Name).Dur("duration", dur).Msg("action finished")
+	log.Info().Str("event", "action_finish").Str("schedule", schedule.Name).
+		Dur("duration", time.Since(start)).Msg("action finished")
 }
 
 func (s *Scheduler) logActionPanic(schedule *DailySchedule, r interface{}) {
-	log.Error().Str("event", "action_panic").Str("schedule", schedule.Name).Interface("panic", r).Bytes("stack", debug.Stack()).Msg("schedule action panic")
+	log.Error().Str("event", "action_panic").Str("schedule", schedule.Name).
+		Interface("panic", r).Bytes("stack", debug.Stack()).Msg("schedule action panic")
 }
