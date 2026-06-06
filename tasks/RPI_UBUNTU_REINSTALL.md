@@ -19,6 +19,7 @@ Everything else is phased or nice-to-have.
 ### Ubuntu 24.04 LTS (arm64)
 
 Raspberry Pi 4 has a 64-bit CPU (Cortex-A72). The current OS is 32-bit Raspbian Buster. Ubuntu 24.04 LTS Server for arm64 is the right target:
+
 - Supported until April 2029 (LTS)
 - Official Raspberry Pi images from Canonical
 - Modern CA bundle — fixes any TLS compatibility issues present on Buster
@@ -35,14 +36,14 @@ The existing `tools/mcp-pi/` MCP server runs on the developer's laptop and SSHes
 
 Most images support multi-arch including arm64. Two require explicit attention:
 
-| Container | Current image | Action needed |
-|---|---|---|
-| mariadb | `linuxserver/mariadb:arm32v7-version-10.5.12-r0` | Replace with `mariadb:10.11` (official, multi-arch) |
-| zigbee2mqtt | `koenkk/zigbee2mqtt:1.18.1` | Upgrade to current release (arm64 support added in ~1.20) |
-| grafana | `grafana/grafana:8.2.5` | Upgrade to 10.x or 11.x (arm64 supported) |
-| prometheus | `prom/prometheus:v2.31.1` | Upgrade to v2.50+ (arm64 supported) |
-| villa73 Go binaries | built for arm/v7 | Rebuild with `GOARCH=arm64` |
-| Node.js frontend | pinned `22.22.0` arm/v7 | Use official Node 22 arm64 image |
+| Container           | Current image                                    | Action needed                                             |
+| ------------------- | ------------------------------------------------ | --------------------------------------------------------- |
+| mariadb             | `linuxserver/mariadb:arm32v7-version-10.5.12-r0` | Replace with `mariadb:10.11` (official, multi-arch)       |
+| zigbee2mqtt         | `koenkk/zigbee2mqtt:1.18.1`                      | Upgrade to current release (arm64 support added in ~1.20) |
+| grafana             | `grafana/grafana:8.2.5`                          | Upgrade to 10.x or 11.x (arm64 supported)                 |
+| prometheus          | `prom/prometheus:v2.31.1`                        | Upgrade to v2.50+ (arm64 supported)                       |
+| villa73 Go binaries | built for arm/v7                                 | Rebuild with `GOARCH=arm64`                               |
+| Node.js frontend    | pinned `22.22.0` arm/v7                          | Use official Node 22 arm64 image                          |
 
 All other images (InfluxDB 1.8.10, mosquitto, influxdb client libs, Python services) have arm64 variants. Home Assistant publishes its own arm64 image.
 
@@ -56,21 +57,25 @@ Goal: everything ready so reinstall is fast and reversible. No downtime yet.
 
 ### 0.1 Document current configuration
 
-- [ ] Record all container env vars (redact secrets) — especially MariaDB credentials and InfluxDB database name (`homedb`)
-- [ ] Record `zigbee2mqtt` coordinator model and Zigbee network config (`zigbee2mqtt/configuration.yaml`, `devices.yaml`)
-- [ ] Copy all docker.env / .env files to a secure location
+- [x] Record all container env vars (redact secrets) — especially MariaDB credentials and InfluxDB database name (`homedb`)
+- [x] Record `zigbee2mqtt` coordinator model and Zigbee network config (`zigbee2mqtt/configuration.yaml`, `devices.yaml`) — see `local-notes.md`
+- [x] Copy all docker.env / .env files to a secure location
 
 ### 0.2 Database backups
 
 **InfluxDB** (portable backup, stores in binary format, includes all databases):
+
 ```bash
 # On the Pi
 docker exec influxdb influxd backup -portable /var/lib/influxdb/backup
 # Then copy out of the volume
 docker cp influxdb:/var/lib/influxdb/backup ./influxdb-backup-$(date +%Y%m%d)
+# And copy to laptop
+scp -r user@server:~/influxdb-backup-$(date +%Y%m%d) .
 ```
 
 **MariaDB** (logical dump — required for cross-architecture restore):
+
 ```bash
 docker exec mariadb mysqldump \
   -u root -p"${ROOT_PASSWORD}" \
@@ -83,6 +88,7 @@ docker exec mariadb mysqldump \
 ### 0.3 Prepare SSH access for new Pi
 
 Generate a dedicated Ed25519 SSH key pair for MCP/LLM access (separate from your personal key):
+
 ```bash
 ssh-keygen -t ed25519 -C "mcp-pi-access" -f ~/.ssh/mcp_pi_ed25519
 ```
@@ -92,6 +98,7 @@ Keep `~/.ssh/mcp_pi_ed25519.pub` — it will be added to `authorized_keys` durin
 ### 0.4 Download Ubuntu 24.04 LTS for Raspberry Pi
 
 Download `ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz` from `ubuntu.com/download/raspberry-pi`. Verify SHA256 checksum. Flash to a new SD card with Raspberry Pi Imager — use the "Advanced options" (gear icon) to:
+
 - Set hostname (e.g. `pi73`)
 - Pre-configure SSH with the `mcp-pi-access` public key above
 - Set timezone `Europe/Helsinki`
@@ -153,6 +160,7 @@ Verify: `docker run --rm --platform linux/arm64 hello-world`
 ### 1.4 Restore databases
 
 **InfluxDB:**
+
 ```bash
 # Start InfluxDB with a fresh volume
 docker run -d --name influxdb-restore \
@@ -164,6 +172,7 @@ docker stop influxdb-restore && docker rm influxdb-restore
 ```
 
 **MariaDB (arm64 image):**
+
 ```bash
 # Start MariaDB arm64 with empty volume
 docker run -d --name mariadb-restore \
@@ -180,6 +189,7 @@ Verify: spot-check a `SELECT COUNT(*)` from `cabok_db.bookings`.
 ### 1.5 Deploy homeapp73-docker stack
 
 Update `homeapp73-docker/docker-compose.yml`:
+
 - Replace `linuxserver/mariadb:arm32v7-version-10.5.12-r0` → `mariadb:10.11`
 - Upgrade `koenkk/zigbee2mqtt:1.18.1` → `koenkk/zigbee2mqtt:latest` (or pin to latest stable)
 - Upgrade `grafana/grafana:8.2.5` → `grafana/grafana:11.x`
@@ -208,6 +218,7 @@ Copy `.env` files to `backend/.env` and `backend/integrations/*/. env` from the 
 ### 1.7 Verify TLS connections
 
 Ubuntu 24.04 ships with up-to-date CA certificates. Confirm:
+
 ```bash
 curl -v https://web-api.tp.entsoe.eu/api 2>&1 | grep "SSL connection"
 curl -v https://api.sunrise-sunset.org 2>&1 | grep "SSL connection"
@@ -268,6 +279,7 @@ bantime = 1h
 ### 2.3 Docker daemon hardening
 
 `/etc/docker/daemon.json`:
+
 ```json
 {
   "live-restore": true,
@@ -288,6 +300,7 @@ bantime = 1h
 Docker's `restart: unless-stopped` policy on all containers is already in place. Log rotation is handled by the daemon config above.
 
 Consider a weekly cron on the Pi that runs InfluxDB and MariaDB backups to a mounted USB drive or remote location:
+
 ```bash
 # /etc/cron.weekly/backup-databases
 #!/bin/bash
@@ -303,15 +316,16 @@ Extend `tools/mcp-pi/main.go` with new constrained tools. No general shell acces
 
 ### Proposed new MCP tools
 
-| Tool | What it does | Why needed |
-|---|---|---|
-| `influxdb_query` | Runs a read-only Flux/InfluxQL query against `homedb` | Check sensor data freshness, debug gaps |
-| `mariadb_query` | Runs a read-only SQL SELECT against `cabok_db` | Verify cabin booking counts, last-updated timestamps |
-| `docker_ps` | Returns `docker ps --format json` for both compose projects | Quick health overview |
-| `container_restart` | Restarts a named container from an allowlist | Recovery without full SSH access |
-| `influxdb_backup` | Triggers the backup cron and returns status | On-demand backup before changes |
+| Tool                | What it does                                                | Why needed                                           |
+| ------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| `influxdb_query`    | Runs a read-only Flux/InfluxQL query against `homedb`       | Check sensor data freshness, debug gaps              |
+| `mariadb_query`     | Runs a read-only SQL SELECT against `cabok_db`              | Verify cabin booking counts, last-updated timestamps |
+| `docker_ps`         | Returns `docker ps --format json` for both compose projects | Quick health overview                                |
+| `container_restart` | Restarts a named container from an allowlist                | Recovery without full SSH access                     |
+| `influxdb_backup`   | Triggers the backup cron and returns status                 | On-demand backup before changes                      |
 
 **Security model:**
+
 - `influxdb_query` and `mariadb_query` must connect via read-only database users (create these during Phase 1.4/1.5)
 - `container_restart` must validate the container name against a hardcoded allowlist (same pattern as the current `target: dir1|dir2` constraint)
 - No tool exposes arbitrary shell execution
@@ -319,7 +333,7 @@ Extend `tools/mcp-pi/main.go` with new constrained tools. No general shell acces
 ### Read-only database users (create during Phase 1)
 
 ```sql
--- InfluxDB (HTTP API, no auth by default — bind to localhost only via UFW or 
+-- InfluxDB (HTTP API, no auth by default — bind to localhost only via UFW or
 -- create a read-only InfluxDB user if AUTH_ENABLED=true)
 
 -- MariaDB
