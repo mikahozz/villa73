@@ -16,6 +16,7 @@ RUN go build -o /builder/main ./cmd/api
 # runner image
 FROM gcr.io/distroless/static-debian11:nonroot
 WORKDIR /app
+COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=base /builder/main /builder/.env ./
 
 EXPOSE 6001
