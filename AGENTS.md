@@ -5,7 +5,9 @@
 - Prefer root `Makefile` targets over ad-hoc shell commands for local dev checks and Docker workflows.
 - When a matching target exists, use `make <target>` from repo root.
 
-## Commit messages
+## Committing
+
+- Never commit confidential information like user info, passwords or environment details like IP address or similar things. This is a public repo.
 
 - When creating automatic commit messages, summarize the key change and its purpose in one line. Then write a more thorough change description on a separate paragraph below.
 

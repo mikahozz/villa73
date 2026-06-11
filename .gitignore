@@ -1,5 +1,5 @@
 .env
 backend/mcp-pi
 tools/mcp-pi/mcp-pi
-influxdb-backup-*/
+dbbackup-*
 local-notes.md

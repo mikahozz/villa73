@@ -37,6 +37,7 @@ Connected to the old stack via the external network `homeapp73-docker_default`.
 | climateapi | climateapi | 5011 | Python Flask — indoor climate API |
 | electricity | electricity | 3016 | Go — solar power API |
 | cabinbookings | cabinbookings | 3011 | Node.js/Express — cabin booking API |
+| cabinbookings-refresh | cabinbookings-refresh | — | Node.js — scrapes booking site into MariaDB; run on-demand (`restart: "no"`), not long-running |
 | nordpoolrust | nordpoolrust | 3014 | Rust/Actix-web — Nordpool price API (legacy) |
 | influxdb | influxdb:1.8.10 | 8086 | InfluxDB time-series database |
 | mariadb | linuxserver/mariadb arm32v7 | 3306 (internal) | MariaDB — cabin bookings store |
@@ -45,7 +46,7 @@ Connected to the old stack via the external network `homeapp73-docker_default`.
 | homeapp73-docker-sofar-1 | sofar | — | Python — Sofar solar inverter reader |
 | zigbee2mqtt | koenkk/zigbee2mqtt:1.18.1 | host network | Zigbee USB bridge → MQTT |
 | grafana | grafana/grafana:8.2.5 | 3010 | Grafana dashboards |
-| prometheus | prom/prometheus:v2.31.1 | 9090 | Metrics scraping |
+| prometheus | prom/prometheus:v3.5.1 | 9090 | Metrics scraping — defined in compose but **commented out**, not currently running |
 
 ### Standalone (not in either compose file)
 
@@ -199,7 +200,7 @@ Raspberry Pi LAN (192.168.10.217)
   ├─ :8086 InfluxDB
   ├─ :3306 MariaDB (internal only)
   ├─ :3010 Grafana
-  ├─ :9090 Prometheus
+  ├─ :9090 Prometheus (commented out in compose, not currently running)
   └─ :5101 Local Docker registry
 
 Docker networks:
@@ -230,4 +231,4 @@ SSH target and identity files are configured in the root `.env`.
 - **Indoor temperature** in villa73-api returns hardcoded stub data (22.5°C). The real sensor data path (Zigbee → InfluxDB → climateapi) exists in the old stack but is not yet wired into the new Go API.
 - **PostgreSQL** schema is defined in `backend/db/` but the container is not currently running. It is scaffolded for future caching of spot prices and sensor measurements.
 - **nordpoolrust** is superseded by the ENTSO-E integration in villa73-api but continues to run.
-- **Grafana/Prometheus** are running but their dashboards and scrape targets are not version-controlled in the current repo state.
+- **Grafana** is running but its dashboards are not version-controlled in the current repo state. **Prometheus** is defined in `homeapp73-docker/docker-compose.yml` (pinned to `v3.5.1`) but commented out — not currently running, and its scrape targets aren't version-controlled either.

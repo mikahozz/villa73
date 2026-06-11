@@ -23,7 +23,6 @@ Raspberry Pi 4 has a 64-bit CPU (Cortex-A72). The current OS is 32-bit Raspbian 
 - Supported until April 2029 (LTS)
 - Official Raspberry Pi images from Canonical
 - Modern CA bundle — fixes any TLS compatibility issues present on Buster
-- Unattended security upgrades via `apt`
 - All required Docker images have arm64 variants
 
 ### MCP server: configure before the upgrade
@@ -51,6 +50,17 @@ All other images (InfluxDB 1.8.10, mosquitto, influxdb client libs, Python servi
 
 ---
 
+## Variables used in laptop commands
+
+Commands run **from the laptop** below reference `PI_USERNAME` and `PI_HOST`. Export them in your laptop shell so the commands can be copy-pasted as-is. The Pi keeps the same IP across the reinstall (see 1.1 step 4), but the username changes — `PI_USERNAME` is whatever you set in the Imager (0.4); update the export once you reach that point:
+
+```bash
+export PI_USERNAME=<pi-ssh-username>
+export PI_HOST=<pi-ip-or-hostname>
+```
+
+---
+
 ## Phase 0 — Preparation (do NOW, before any reinstall)
 
 Goal: everything ready so reinstall is fast and reversible. No downtime yet.
@@ -63,31 +73,34 @@ Goal: everything ready so reinstall is fast and reversible. No downtime yet.
 
 ### 0.2 Database backups
 
-**InfluxDB** (portable backup, stores in binary format, includes all databases):
+- [x] **InfluxDB** (portable backup, stores in binary format, includes all databases):
 
 ```bash
 # On the Pi
 docker exec influxdb influxd backup -portable /var/lib/influxdb/backup
 # Then copy out of the volume
-docker cp influxdb:/var/lib/influxdb/backup ./influxdb-backup-$(date +%Y%m%d)
+docker cp influxdb:/var/lib/influxdb/backup ./dbbackup-influxdb-$(date +%Y%m%d)
 # And copy to laptop
-scp -r user@server:~/influxdb-backup-$(date +%Y%m%d) .
+scp -r ${PI_USERNAME}@${PI_HOST}:~/dbbackup-influxdb-$(date +%Y%m%d) .
 ```
 
-**MariaDB** (logical dump — required for cross-architecture restore):
+- [x] **MariaDB** (logical dump — required for cross-architecture restore):
 
 ```bash
 docker exec mariadb mysqldump \
-  -u root -p"${ROOT_PASSWORD}" \
-  --all-databases --single-transaction --routines --triggers \
-  > ./mariadb-backup-$(date +%Y%m%d).sql
+  -u root -p"${MYSQL_ROOT_PASSWORD}" \
+  --single-transaction --routines --triggers \
+  cabok_db \
+  > ./dbbackup-mariadb-$(date +%Y%m%d).sql
+# And copy to laptop
+scp -r ${PI_USERNAME}@${PI_HOST}:~/dbbackup-mariadb-$(date +%Y%m%d) .
 ```
 
-**Verify restores before proceeding.** Test the MariaDB dump by restoring into a temporary container on the developer machine.
+- [x] **Verify restores before proceeding.** Test the MariaDB dump and Influx backup by restoring into a temporary container on the developer machine.
 
-### 0.3 Prepare SSH access for new Pi
+### [x] 0.3 Prepare SSH access for new Pi
 
-Generate a dedicated Ed25519 SSH key pair for MCP/LLM access (separate from your personal key):
+- Generate a dedicated Ed25519 SSH key pair for MCP/LLM access (separate from your personal key):
 
 ```bash
 ssh-keygen -t ed25519 -C "mcp-pi-access" -f ~/.ssh/mcp_pi_ed25519
@@ -95,30 +108,125 @@ ssh-keygen -t ed25519 -C "mcp-pi-access" -f ~/.ssh/mcp_pi_ed25519
 
 Keep `~/.ssh/mcp_pi_ed25519.pub` — it will be added to `authorized_keys` during Ubuntu setup. Update `.env` in the villa73 repo to point at this new key once the Pi is reinstalled.
 
-### 0.4 Download Ubuntu 24.04 LTS for Raspberry Pi
+### [x] Prepare Raspberry PI 4 for Ubuntu 26.04
 
-Download `ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz` from `ubuntu.com/download/raspberry-pi`. Verify SHA256 checksum. Flash to a new SD card with Raspberry Pi Imager — use the "Advanced options" (gear icon) to:
+- Run `rpi-eeprom-update` to check if date is later than 2022-11-25
+- If not, run `sudo rpi-eeprom-update -a`, restart and check again
 
-- Set hostname (e.g. `pi73`)
-- Pre-configure SSH with the `mcp-pi-access` public key above
-- Set timezone `Europe/Helsinki`
-- Disable password login
+### [x] 0.4 Download and Flash Ubuntu for Raspberry Pi
+
+- Download **Raspberry Pi Imager** from `raspberrypi.com/software` (not Balena Etcher — it has no customization options). Install and open it.
+- In Imager: choose OS → Other general-purpose OS → Ubuntu → Ubuntu Server 26.04 LTS (64-bit).
+- Before writing, click the gear icon (or Ctrl+Shift+X) and configure:
+  - Hostname: `somehostname`
+  - User: `${PI_USERNAME}` (the value you exported above)
+  - Enable SSH → "Allow public-key authentication only" → paste contents of your public key(s) in `~/.ssh`
+  - Set a temporary password too (useful fallback if key auth fails)
+  - Timezone: `Europe/Helsinki`
+- Write to the SD card.
+
+### [x] 0.5 Fallback: SSH setup failed — debug via direct console
+
+If the Pi doesn't appear on the network or SSH connections are refused/denied, connect a monitor and keyboard directly to the Pi and log in at the console with the username/password set during imaging (or the default `ubuntu`/`ubuntu`, which forces a password change on first login).
+
+Once logged in at the console, work through these checks in order:
+
+**1. Confirm cloud-init finished applying your customization**
+
+```bash
+cloud-init status --long
+```
+
+If it shows `status: running` or `status: error`, wait a minute and re-check, or read `/var/log/cloud-init.log` / `/var/log/cloud-init-output.log` for the failure. A failed cloud-init run is the most common reason customization (hostname, SSH key, user) silently didn't apply.
+
+**2. Confirm the network has an IP address**
+
+```bash
+ip a
+hostname -I
+```
+
+If there's no IP on `eth0`/`end0`, the cable/DHCP is the problem, not SSH. Re-check the cable and your router's DHCP leases.
+
+**3. Confirm the SSH service is installed, enabled, and running**
+
+```bash
+systemctl status ssh
+sudo systemctl enable ssh --now
+```
+
+Ubuntu Server normally ships with `openssh-server` preinstalled and enabled; if it's missing:
+
+```bash
+sudo apt update && sudo apt install -y openssh-server
+sudo systemctl enable ssh --now
+```
+
+**4. Confirm your public key actually landed in authorized_keys**
+
+```bash
+cat ~/.ssh/authorized_keys
+```
+
+If it's empty or missing, add it manually. On your laptop, print the key:
+
+```bash
+cat ~/.ssh/mcp_pi_ed25519.pub
+```
+
+Copy that single line, then on the Pi:
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo "<paste the public key line here>" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+**5. Confirm sshd_config allows the auth method you're using**
+
+```bash
+sudo sshd -T | grep -iE "passwordauthentication|pubkeyauthentication|permitrootlogin"
+```
+
+`pubkeyauthentication` should be `yes`. If you're temporarily relying on a password, `passwordauthentication` must also be `yes` (Ubuntu's default cloud-init can disable it when a key is supplied). Edit `/etc/ssh/sshd_config` if needed and reload:
+
+```bash
+sudo systemctl reload ssh
+```
+
+**6. Confirm the firewall isn't blocking port 22**
+
+```bash
+sudo ufw status
+```
+
+On a fresh Ubuntu Server image UFW is inactive by default, so this is unlikely — but worth ruling out before you go further.
+
+**7. Re-test from your laptop**
+
+```bash
+ssh -i ~/.ssh/mcp_pi_ed25519 -v ${PI_USERNAME}@${PI_HOST}
+```
+
+The `-v` flag shows exactly which keys are offered and why the server rejects them — this is the fastest way to pinpoint a remaining mismatch (wrong username, wrong key, key not in authorized_keys, or auth method disabled).
+
+Once SSH access is confirmed working from the laptop, continue with Phase 1.
 
 ---
 
 ## Phase 1 — Milestone 1: Ubuntu Up and Solution Running
 
-### 1.1 Install Ubuntu 24.04 LTS
+### 1.1 [x] Install Ubuntu
 
 1. Boot from the freshly flashed SD card
-2. SSH in with your key: `ssh ubuntu@<ip>`
+2. SSH in with your public key: `ssh ${PI_USERNAME}@${PI_HOST}`
 3. Run initial updates:
    ```bash
    sudo apt update && sudo apt full-upgrade -y && sudo reboot
    ```
 4. Set a static IP or reserve the DHCP lease in your router (the Pi must stay at the same IP the MCP server is configured to reach)
 
-### 1.2 Initial hardening (do early, before exposing services)
+### 1.2 [x] Initial hardening (do early, before exposing services)
 
 ```bash
 # SSH: key-only, no password, no root
@@ -126,22 +234,56 @@ sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/
 sudo sed -i 's/PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 sudo systemctl reload ssh
 
-# UFW firewall — allow only what is needed
+# UFW firewall — for non-Docker traffic (SSH, host-level services)
 sudo apt install -y ufw
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow ssh
-sudo ufw allow 80/tcp      # villa73-web (HTTP, internal LAN only)
 sudo ufw enable
-
-# Unattended security updates
-sudo apt install -y unattended-upgrades
-sudo dpkg-reconfigure --priority=low unattended-upgrades
 ```
 
-Ports 6001, 6002, 5011, 3010, 3011, 3014, 3016, 8086, 9090, 1883 are **not** opened in UFW — Docker manages them and they are LAN-internal only. If you need external HTTPS access to the dashboard, add a reverse proxy with TLS in a later phase.
+Automatic/unattended upgrades are intentionally **not** configured — package updates can land
+mid-session and break a running container or service without warning, and on a "minimal touch,
+LLM-operated" box it's preferable to apply updates deliberately (e.g. `sudo apt update && sudo
+apt upgrade` during a planned maintenance window) so any breakage is noticed and tied to a known
+change rather than discovered later as a mystery outage.
 
-### 1.3 Install Docker
+**Important — Docker bypasses UFW.** Docker inserts its own rules into the `DOCKER`/`DOCKER-USER`
+iptables chains, which are evaluated _before_ UFW's filter chain. Any port published with
+`ports:` in a compose file (e.g. `"6001:6001"`) is reachable from the whole LAN regardless of
+`ufw allow`/`deny` — the `ufw allow ssh` above only matters for host-level services, not
+container ports. This trips up a lot of people; see
+[github.com/chaifeng/ufw-docker](https://github.com/chaifeng/ufw-docker) for background.
+
+Of the published container ports, only **80** (villa73-web, viewed from the tablet) and
+optionally **3010** (Grafana, if viewed from a LAN browser) need to be reachable from other
+devices on the LAN. Everything else (6001, 6002, 5011, 3011, 3014, 3016, 8086, 9090, 1883) is
+only ever called by other containers on the same Docker network and should not be exposed at
+all. The correct fix is to bind those container ports to localhost in the compose files, so
+Docker never publishes them to the LAN interface in the first place:
+
+```yaml
+# before (reachable from the whole LAN, bypassing UFW)
+ports:
+  - "6001:6001"
+
+# after (only reachable from the Pi itself)
+ports:
+  - "127.0.0.1:6001:6001"
+```
+
+Apply `127.0.0.1:` binding to every `ports:` entry except `villa73-web` (port 80) and, if
+needed, `grafana` (port 3010). Containers that talk to each other over the shared Docker
+network (e.g. villa73-web → villa73-api, mqttclient → influxdb) keep working unchanged —
+inter-container traffic never goes through the published host port. If you'd rather keep UFW as
+the single source of truth for firewall rules instead of editing every compose file, install
+[`ufw-docker`](https://github.com/chaifeng/ufw-docker), which rewrites Docker's iptables rules
+to respect UFW.
+
+If you need external HTTPS access to the dashboard from outside the LAN, add a reverse proxy
+with TLS in a later phase rather than exposing container ports directly.
+
+### 1.3 [x] Install Docker
 
 ```bash
 sudo apt install -y ca-certificates curl
@@ -152,12 +294,22 @@ echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] \
   https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
   | sudo tee /etc/apt/sources.list.d/docker.list
 sudo apt update && sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-sudo usermod -aG docker ubuntu
+sudo usermod -aG docker $USER   # adds the currently logged-in user to the docker group
 ```
 
 Verify: `docker run --rm --platform linux/arm64 hello-world`
 
-### 1.4 Restore databases
+### 1.4 [x] Restore databases
+
+**Copy backup files from laptop to the Pi** (reverse of the `scp` in 0.2 — run from the laptop, into a working directory on the Pi, e.g. `~/restore`):
+
+```bash
+ssh ${PI_USERNAME}@${PI_HOST} "mkdir -p ~/restore"
+scp -r ./dbbackup-influxdb-20260606 ${PI_USERNAME}@${PI_HOST}:~/restore/influxdb-backup
+scp ./dbbackup-mariadb-20260606.sql ${PI_USERNAME}@${PI_HOST}:~/restore/mariadb-backup-20260606.sql
+```
+
+Then `ssh` into the Pi and `cd ~/restore` before running the restore commands below — they expect `./influxdb-backup/` and `./mariadb-backup-20260606.sql` relative to the current directory.
 
 **InfluxDB:**
 
@@ -174,13 +326,23 @@ docker stop influxdb-restore && docker rm influxdb-restore
 **MariaDB (arm64 image):**
 
 ```bash
+export MYSQL_ROOT_PASSWORD=<password>
+
 # Start MariaDB arm64 with empty volume
 docker run -d --name mariadb-restore \
-  -e MYSQL_ROOT_PASSWORD=<password> \
+  -e MYSQL_ROOT_PASSWORD \
   -v mariadb-data:/var/lib/mysql \
   mariadb:10.11
-# Wait for startup, then restore
-docker exec -i mariadb-restore mysql -u root -p<password> < mariadb-backup-YYYYMMDD.sql
+
+# Wait for the *second* "ready for connections" — the official entrypoint
+# bootstraps the mysql system DB, restarts mysqld, then accepts connections
+until [ "$(docker logs mariadb-restore 2>&1 | grep -c 'ready for connections')" -ge 2 ]; do
+  sleep 2
+done
+
+docker exec -i mariadb-restore mysql -u root -p$MYSQL_ROOT_PASSWORD \
+  -e "CREATE DATABASE IF NOT EXISTS cabok_db"
+docker exec -i mariadb-restore mysql -u root -p$MYSQL_ROOT_PASSWORD cabok_db < mariadb-backup-YYYYMMDD.sql
 docker stop mariadb-restore && docker rm mariadb-restore
 ```
 
@@ -191,12 +353,18 @@ Verify: spot-check a `SELECT COUNT(*)` from `cabok_db.bookings`.
 Update `homeapp73-docker/docker-compose.yml`:
 
 - Replace `linuxserver/mariadb:arm32v7-version-10.5.12-r0` → `mariadb:10.11`
-- Upgrade `koenkk/zigbee2mqtt:1.18.1` → `koenkk/zigbee2mqtt:latest` (or pin to latest stable)
-- Upgrade `grafana/grafana:8.2.5` → `grafana/grafana:11.x`
-- Upgrade `prom/prometheus:v2.31.1` → `prom/prometheus:v2.53`
+- Upgrade `koenkk/zigbee2mqtt:1.18.1` → `koenkk/zigbee2mqtt:2.11.0`
+- Upgrade `grafana/grafana:8.2.5` → `grafana/grafana:11.6.15`
 - Remove explicit `arm32v7` platform pins where present
 - Point volume mounts at restored data (`influxdb-data`, `mariadb-data`)
 - Re-attach `zigbee2mqtt` to `/dev/ttyACM0` — verify the USB coordinator is recognized (`ls /dev/ttyACM*`)
+
+Copy env files from the backup machine before starting:
+
+```bash
+scp /path/to/backup/homeapp73-docker/.env pi@villa73.local:~/homeapp73-docker/.env
+scp /path/to/backup/homeapp73-docker/mariadb/docker.env pi@villa73.local:~/homeapp73-docker/mariadb/docker.env
+```
 
 ```bash
 cd homeapp73-docker
