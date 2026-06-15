@@ -14,10 +14,9 @@ COPY . ./
 RUN go build -o /builder/main ./cmd/scheduler
 
 # runner image
-FROM gcr.io/distroless/static-debian11:nonroot
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates docker-cli docker-cli-compose
 WORKDIR /app
-COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=base /builder/main /builder/.env ./
 
-EXPOSE 6001
 CMD ["/app/main"]

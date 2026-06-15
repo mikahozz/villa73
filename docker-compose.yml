@@ -30,6 +30,9 @@ services:
       dockerfile: ./cmd/scheduler/Dockerfile
     ports:
       - 6002:6002
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../homeapp73-docker:/homeapp73-docker
     networks:
       - default
 

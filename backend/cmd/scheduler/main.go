@@ -88,6 +88,21 @@ func main() {
 		},
 		Action: func(ctx context.Context) error { return shelly.TurnOff(ctx) },
 	})
+
+	// Cabin bookings refresh: run docker compose service to scrape and store bookings.
+	scheduler.AddSchedule(&DailySchedule{
+		Name: "Cabin bookings refresh at 06:30",
+		Trigger: Trigger{
+			Time: func() time.Time {
+				now := time.Now().In(zone)
+				return time.Date(now.Year(), now.Month(), now.Day(), 6, 30, 0, 0, zone)
+			},
+		},
+		Action: func(ctx context.Context) error {
+			return runShellCommand(ctx, "/homeapp73-docker", "docker", "compose", "run", "--rm", "cabinbookings-refresh")
+		},
+	})
+
 	scheduler.Start()
 	defer scheduler.Stop()
 
