@@ -4,13 +4,22 @@ import (
 	"context"
 	"os"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/mikahozz/gohome/integrations/shelly"
 	"github.com/mikahozz/gohome/integrations/sun"
 	"github.com/rs/zerolog/log"
 )
 
-var zone, _ = time.LoadLocation("Europe/Helsinki")
+var zone = mustLoadLocation("Europe/Helsinki")
+
+func mustLoadLocation(name string) *time.Location {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		panic("failed to load timezone " + name + ": " + err.Error())
+	}
+	return loc
+}
 
 var sunDataInstance *sun.SunData
 
