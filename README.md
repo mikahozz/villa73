@@ -5,6 +5,84 @@ Being rebuilt - again. Now as a monorepo including the Go backend
 - frontend/ Contains the React web solution
 - backend/ Contains the Go backend
 
+## Raspberry Pi hostname setup (mDNS / `<hostname>.local`)
+
+By default, a Raspberry Pi running Ubuntu Server will **not** be discoverable by hostname on the local network — even if `/etc/hostname` is set correctly. Without mDNS, other devices on the network have no way to resolve the hostname to an IP address unless a local DNS server or router provides that mapping.
+
+### What's needed
+
+Two packages must be installed on the Pi:
+
+| Package | Role |
+|---|---|
+| `avahi-daemon` | Runs a background service that broadcasts the hostname as `<hostname>.local` over mDNS (Multicast DNS / Bonjour) on the local network |
+| `libnss-mdns` | Extends the Linux name resolution stack (NSS) to resolve `.local` names via mDNS, and automatically updates `/etc/nsswitch.conf` |
+
+### Installation
+
+```bash
+sudo apt-get install -y avahi-daemon libnss-mdns
+```
+
+This will:
+1. Install and start `avahi-daemon` (enabled on boot automatically)
+2. Install `libnss-mdns` and patch `/etc/nsswitch.conf` to include `mdns4_minimal [NOTFOUND=return]` in the `hosts:` line
+
+### Verify it's working
+
+Check the daemon is running and broadcasting the right name:
+
+```bash
+systemctl status avahi-daemon
+```
+
+You should see a line like:
+```
+"avahi-daemon: running [<hostname>.local]"
+```
+
+And `/etc/nsswitch.conf` should have:
+```
+hosts: files mdns4_minimal [NOTFOUND=return] dns
+```
+
+### Connecting from other devices
+
+| Client OS | `<hostname>.local` | Notes |
+|---|---|---|
+| macOS / iOS | Works out of the box | Bonjour is built in |
+| Linux | Works after installing `avahi-daemon` + `libnss-mdns` on the client too | Same setup as the Pi |
+| Windows | Requires [Bonjour for Windows](https://support.apple.com/kb/DL999) (installed with iTunes) | Or use the IP address |
+
+Once set up, you can use:
+
+```bash
+# SSH by name
+ssh <user>@<hostname>.local
+
+# Browser
+http://<hostname>.local      # port 80
+https://<hostname>.local     # port 443
+```
+
+### Why bare hostname (without `.local`) doesn't reliably work
+
+The `.local` suffix is what triggers mDNS resolution. Without it, name resolution falls through to DNS, which your home router likely doesn't answer for local hostnames. Use `<hostname>.local` consistently for reliable results across all clients. Alternatively, configure your router's local DNS (if it supports it) or add an entry to `/etc/hosts` on each client machine.
+
+### SSH config tip
+
+Add this to `~/.ssh/config` on your client machine to avoid typing `.local` every time:
+
+```
+Host <hostname>
+    HostName <hostname>.local
+    User <user>
+```
+
+Then `ssh <hostname>` will work from that machine.
+
+---
+
 ## Node.js version policy
 
 - Frontend local and Docker builds are pinned to `22.22.0`.
