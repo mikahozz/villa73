@@ -108,7 +108,7 @@ func main() {
 			},
 		},
 		Action: func(ctx context.Context) error {
-			return runShellCommand(ctx, "/homeapp73-docker", "docker", "compose", "run", "--rm", "cabinbookings-refresh")
+			return runShellCommand(ctx, "/home/mikah0/homeapp73-docker", "docker", "compose", "run", "--rm", "cabinbookings-refresh")
 		},
 	})
 
